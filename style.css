@@ -1,0 +1,19 @@
+.COMMENT {
+	color: green;
+}
+
+.CONST {
+	color: #9578ff;
+}
+
+.IDENT {
+	color: black;
+}
+
+.MNEMONIC {
+	color: darkblue;
+}
+
+.REGISTER {
+	color: red;
+}
