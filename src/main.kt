@@ -5,10 +5,10 @@ private val asmCodeId = "asm-code"
 
 fun main(args: Array<String>) {
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
-    val code = document.getElementById("code")!!
-    val lexer = Lexer(input)
 
-    lexer.forEach { token ->
+
+    val code = document.getElementById("code")!!
+    Lexer(input).forEach { token ->
         val element: Element = when(token.kind) {
             TokenKind.EOL -> document.createElement("br")
             else -> {
@@ -21,4 +21,6 @@ fun main(args: Array<String>) {
         }
         code.appendChild(element)
     }
+
+    println(Parser(Lexer(input)).parse())
 }

@@ -17,7 +17,7 @@ enum class TokenKind {
     WHITESPACE,
 }
 
-data class Token(val kind: TokenKind, val range: IntRange, val value: Int = -1)
+data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
 
 val mnemonics = listOf(
         "ADD",
@@ -88,10 +88,10 @@ class Lexer(private val input: String) : Iterable<Token> {
         return Token(TokenKind.CONST, makeRange {
             expectChar('#')
             value = readNumber()
-        }, value)
+        }, intValue =  value)
     }
 
-    fun readEol() = readCharToken(TokenKind.EOL, '\n')
+    private fun readEol() = readCharToken(TokenKind.EOL, '\n')
 
     private fun readIdentOrMnemonic(): Token {
         var name = ""
@@ -104,7 +104,7 @@ class Lexer(private val input: String) : Iterable<Token> {
             name in mnemonics -> TokenKind.MNEMONIC
             else -> TokenKind.IDENT
         }
-        return Token(kind, range)
+        return Token(kind, range, stringValue = name)
     }
 
     private fun readRegister(): Token {
@@ -115,7 +115,7 @@ class Lexer(private val input: String) : Iterable<Token> {
                 throw Exception()
             }
             value = readNumber()
-        }, value)
+        }, intValue = value)
     }
 
     private fun readWhitespace(): Token {
@@ -140,6 +140,13 @@ class Lexer(private val input: String) : Iterable<Token> {
             c in inlineWhitespace -> readWhitespace()
             else -> throw Exception()
         }
+    }
+
+    fun peekToken(): Token? {
+        val offset = inputOffset
+        val token = readToken()
+        inputOffset = offset
+        return token
     }
 
     override fun iterator(): Iterator<Token> {
