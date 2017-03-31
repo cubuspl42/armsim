@@ -28,4 +28,9 @@ fun main(args: Array<String>) {
     program.instructions.forEach {
         println(it.toString())
     }
+
+    val vm = Vm(program)
+    vm.step()
+    vm.step()
+    vm.step()
 }

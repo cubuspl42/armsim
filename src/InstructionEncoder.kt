@@ -29,5 +29,9 @@ class InstructionEncoder(pattern: Int) {
 
     fun rd(data: Int) = encodeData(12, 4, data)
 
+    fun rm(data: Int) = encodeData(0, 4, data)
+
+    fun rn(data: Int) = encodeData(16, 4, data)
+
     fun s(data: Int) = encodeData(20, 1, data)
 }
