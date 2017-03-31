@@ -19,15 +19,6 @@ enum class TokenKind {
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
 
-val mnemonics = listOf(
-        "ADD",
-        "SUB",
-        "MOV",
-        "SUBS",
-        "BNE",
-        "B"
-)
-
 val inlineWhitespace = listOf(' ', '\t')
 
 class Lexer(private val input: String) : Iterable<Token> {

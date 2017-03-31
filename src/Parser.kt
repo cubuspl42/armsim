@@ -89,14 +89,21 @@ class Parser(private val lexer: Lexer) {
         val mnemonicToken = readExpectedToken(TokenKind.MNEMONIC)
         val mnemonic = MnemonicAst(mnemonicToken.stringValue)
         val arglist = parseArglist()
-        readTokenOptionally(TokenKind.EOL)
         return InstructionAst(label, mnemonic, arglist)
+    }
+
+    private fun parseLine(): InstructionAst? {
+        val token = if(peekToken()?.kind != TokenKind.EOL) {
+            parseInstruction()
+        } else null
+        readTokenOptionally(TokenKind.EOL)
+        return token
     }
 
     fun parse(): ProgramAst {
         val instructions = mutableListOf<InstructionAst>()
         while (peekToken() != null) {
-            instructions.add(parseInstruction())
+            parseLine()?.let { instructions.add(it) }
         }
         return ProgramAst(instructions)
     }

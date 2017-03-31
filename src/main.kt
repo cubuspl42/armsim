@@ -23,4 +23,9 @@ fun main(args: Array<String>) {
     }
 
     println(Parser(Lexer(input)).parse())
+
+    val program = Assembler(input).assemble()
+    program.instructions.forEach {
+        println(it.toString())
+    }
 }
