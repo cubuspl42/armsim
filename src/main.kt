@@ -6,7 +6,6 @@ private val asmCodeId = "asm-code"
 fun main(args: Array<String>) {
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
 
-
     val code = document.getElementById("code")!!
     Lexer(input).forEach { token ->
         val element: Element = when(token.kind) {
@@ -30,7 +29,5 @@ fun main(args: Array<String>) {
     }
 
     val vm = Vm(program)
-    vm.step()
-    vm.step()
-    vm.step()
+    (1..5).forEach { vm.step() }
 }

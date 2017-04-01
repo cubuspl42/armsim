@@ -9,7 +9,7 @@ val sBit = 20..20
 val shiftImmBits = 7..11
 val shiftBits = 5..6
 
-val mnemonics = listOf(
+val mnemonics = listOf( // FIXME: sync with Isa
         "ADC",
         "ADD",
         "AND",
@@ -45,9 +45,14 @@ object Isa {
             0b00000000000000000000000000000000,
             cond = true, s = true)
 
-    val mov = InstructionDef("AND",
+    val mov = InstructionDef("MOV",
             0b00001101111000000000000000000000,
             0b00000001101000000000000000000000,
+            cond = true, s = true)
+
+    val sub = InstructionDef("SUB",
+            0b00001101111000000000000000000000,
+            0b00000000010000000000000000000000,
             cond = true, s = true)
 }
 

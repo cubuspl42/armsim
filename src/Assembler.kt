@@ -24,8 +24,8 @@ inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
     } else throw Exception()
 }
 
-private fun emitAdd(instAst: InstructionAst): Int {
-    val args = instAst.arglist.args
+private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
     checkArgsSize(args, 3)
 
     val rn = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
@@ -42,8 +42,8 @@ private fun emitAdd(instAst: InstructionAst): Int {
     ))
 }
 
-private fun emitMov(instAst: InstructionAst): Int {
-    val args = instAst.arglist.args
+private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
     checkArgsSize(args, 2)
 
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
@@ -58,17 +58,34 @@ private fun emitMov(instAst: InstructionAst): Int {
     ))
 }
 
+private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
+    checkArgsSize(args, 3)
+
+    val rn = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+    val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
+
+    return encodeInstruction(Isa.sub.eqMask, listOf(
+            condBits to 0,
+            iBit to 0,
+            sBit to if(caps.s) 1 else 0,
+            rnBits to rn,
+            rdBits to rd,
+            rmBits to rm
+    ))
+}
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
 
+    private val encoder = InstructionEncoder(listOf(
+            Isa.add to ::emitAdd,
+            Isa.mov to ::emitMov,
+            Isa.sub to ::emitSub
+    ))
+
     fun assemble(): Program {
-        val instructions = ast.instructions.map {
-            when (it.mnemonic.value) {
-                "ADD" -> emitAdd(it)
-                "MOV" -> emitMov(it)
-                else -> 0
-            }
-        }
+        val instructions = ast.instructions.map { encoder.encode(it) }
         return Program(instructions)
     }
 }

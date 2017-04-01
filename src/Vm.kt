@@ -1,8 +1,8 @@
 class InstructionDecoder(private val handlers: List<Pair<InstructionDef, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val handler = handlers.first { (def, _) ->
+        val handler = handlers.firstOrNull { (def, _) ->
             (instruction and def.andMask) == def.eqMask
-        }.second
+        }?.second ?: throw Exception("Unrecognized instruction")
         handler(instruction)
     }
 }
@@ -41,9 +41,19 @@ class Vm(private val program: Program) {
         r[rd] = immed8
     }
 
+    fun sub(inst: Int) {
+        val rd = decodeComponent(inst, rdBits)
+        val rn = decodeComponent(inst, rnBits)
+        val rm = decodeComponent(inst, rmBits)
+
+        println(">> SUB r$rd, r$rn, r$rm")
+        r[rd] = r[rn] - r[rm]
+    }
+
     private val decoder = InstructionDecoder(listOf(
             Isa.add to this::add,
-            Isa.mov to this::mov
+            Isa.mov to this::mov,
+            Isa.sub to this::sub
     ))
 
     fun step() {
