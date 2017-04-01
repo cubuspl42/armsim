@@ -44,10 +44,15 @@ class Vm(private val program: Program) {
     fun sub(inst: Int) {
         val rd = decodeComponent(inst, rdBits)
         val rn = decodeComponent(inst, rnBits)
+        val i = decodeComponent(inst, iBit)
         val rm = decodeComponent(inst, rmBits)
+        val immed8 = decodeComponent(inst, immed8Bits)
+        val shifterOperand = if(i > 0) immed8 else r[rm]
 
-        println(">> SUB r$rd, r$rn, r$rm")
-        r[rd] = r[rn] - r[rm]
+        if(i > 0) println(">> SUB r$rd, r$rn, #$immed8")
+        else println(">> SUB r$rd, r$rn, r$rm")
+
+        r[rd] = r[rn] - shifterOperand
     }
 
     private val decoder = InstructionDecoder(listOf(

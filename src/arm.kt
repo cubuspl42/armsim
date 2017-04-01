@@ -8,6 +8,7 @@ val rnBits = 16..19
 val sBit = 20..20
 val shiftImmBits = 7..11
 val shiftBits = 5..6
+val shifterOperandBits = 0..11
 
 val mnemonics = listOf( // FIXME: sync with Isa
         "ADC",

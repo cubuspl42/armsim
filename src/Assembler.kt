@@ -1,15 +1,18 @@
 data class Program(val instructions: List<Int>)
 
-private fun encodeData(inst: Int, bits: IntRange, data: Int): Int {
+private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
     val offset = bits.first
     return inst or (data shl offset)
 }
 
-fun encodeInstruction(pattern: Int, components: List<Pair<IntRange, Int>>): Int {
-    return components.foldRight(pattern, { p, acc ->
+fun encodeData(components: List<Pair<IntRange, Int>>): Int {
+    return components.foldRight(0, { p, acc ->
         val (bits, data) = p
-        encodeData(acc, bits, data)
+        encodeComponent(acc, bits, data)
     })
+}
+fun encodeInstruction(pattern: Int, components: List<Pair<IntRange, Int>>): Int {
+    return pattern or encodeData(components)
 }
 
 fun checkArgsSize(args: List<ExprAst>, expectedSize: Int) {
@@ -58,23 +61,38 @@ private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
     ))
 }
 
+private fun encodeShifterOperand(exprAst: ExprAst): Pair<Int, Int> {
+    return when(exprAst) {
+        is RegisterAst -> {
+            val rm = castExpr<RegisterAst>(exprAst).index // FIXME: check 0-15
+            Pair(encodeData(listOf(rmBits to rm)), 0)
+        }
+        is ConstAst -> {
+            val immed = castExpr<ConstAst>(exprAst).value
+            Pair(encodeData(listOf(immed8Bits to immed)), 1)
+        }
+        else -> throw Exception("Expected register or constant")
+    }
+}
+
 private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
     checkArgsSize(args, 3)
 
     val rn = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-    val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
+    val (shifterOperand, i) = encodeShifterOperand(args[2])
 
     return encodeInstruction(Isa.sub.eqMask, listOf(
             condBits to 0,
-            iBit to 0,
+            iBit to i,
             sBit to if(caps.s) 1 else 0,
             rnBits to rn,
             rdBits to rd,
-            rmBits to rm
+            shifterOperandBits to shifterOperand
     ))
 }
+
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
 
