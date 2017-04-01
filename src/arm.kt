@@ -21,6 +21,26 @@ val mnemonics = listOf(
         "SUBS"
 )
 
+
+data class InstructionMask(val andMask: Int, val eqMask: Int)
+
+val adcMask = InstructionMask(
+        0b00001101111000000000000000000000,
+        0b00000000101000000000000000000000)
+
+val addMask = InstructionMask(
+        0b00001101111000000000000000000000,
+        0b00000000100000000000000000000000)
+
+val andMask = InstructionMask(
+        0b00001101111000000000000000000000,
+        0b00000000000000000000000000000000)
+
+val movMask = InstructionMask(
+        0b00001101111000000000000000000000,
+        0b00000001101000000000000000000000)
+
+
 val MASK1 = 0b00001101111000000000000000000000
 
 val ADC_MASK = MASK1

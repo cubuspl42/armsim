@@ -1,11 +1,9 @@
-data class InstructionPattern(val mask: Int, val pattern: Int, val function: (Int) -> Unit)
-
-class InstructionDecoder(private val instructionPatterns: List<InstructionPattern>) {
+class InstructionDecoder(private val handlers: List<Pair<InstructionMask, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val function = instructionPatterns.first {
-            (instruction and it.mask) == it.pattern
-        }.function
-        function(instruction)
+        val handler = handlers.first { (mask, function) ->
+            (instruction and mask.andMask) == mask.eqMask
+        }.second
+        handler(instruction)
     }
 }
 
@@ -33,7 +31,6 @@ class Vm(private val program: Program) {
 
         println(">> ADD r$rd, r$rn, r$rm")
         r[rd] = r[rn] + r[rm]
-        printRegisters()
     }
 
     fun mov(inst: Int) {
@@ -42,16 +39,16 @@ class Vm(private val program: Program) {
 
         println(">> MOV r$rd, #$immed8")
         r[rd] = immed8
-        printRegisters()
     }
 
     private val decoder = InstructionDecoder(listOf(
-            InstructionPattern(ADD_MASK, ADD_PATTERN, this::add),
-            InstructionPattern(MOV_MASK, MOV_PATTERN, this::mov)
+            addMask to this::add,
+            movMask to this::mov
     ))
 
     fun step() {
         val inst = program.instructions[ip++]
         decoder.decode(inst)
+        printRegisters()
     }
 }
