@@ -1,5 +1,17 @@
 data class Program(val instructions: List<Int>)
 
+private fun encodeData(inst: Int, bits: IntRange, data: Int): Int {
+    val offset = bits.first
+    return inst or (data shl offset)
+}
+
+fun encodeInstruction(pattern: Int, components: List<Pair<IntRange, Int>>): Int {
+    return components.foldRight(pattern, { p, acc ->
+        val (bits, data) = p
+        encodeData(acc, bits, data)
+    })
+}
+
 fun checkArgsSize(args: List<ExprAst>, expectedSize: Int) {
     if (args.size != expectedSize) {
         throw Exception()
@@ -20,14 +32,14 @@ private fun emitAdd(instAst: InstructionAst): Int {
     val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
 
-    return InstructionEncoder(ADD_PATTERN)
-            .cond(0)
-            .i(0)
-            .s(0)
-            .rn(rn)
-            .rd(rd)
-            .rm(rm)
-            .encode()
+    return encodeInstruction(ADD_PATTERN, listOf(
+            condBits to 0,
+            iBit to 0,
+            sBit to 0,
+            rnBits to rn,
+            rdBits to rd,
+            rmBits to rm
+    ))
 }
 
 private fun emitMov(instAst: InstructionAst): Int {
@@ -37,13 +49,13 @@ private fun emitMov(instAst: InstructionAst): Int {
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val immed = castExpr<ConstAst>(args[1]).value // FIXME: check 8b
 
-    return InstructionEncoder(MOV_PATTERN)
-            .cond(0)
-            .i(0)
-            .s(0)
-            .rd(rd)
-            .immediate(0, immed)
-            .encode()
+    return encodeInstruction(MOV_PATTERN, listOf(
+            condBits to 0,
+            iBit to 0,
+            sBit to 0,
+            rdBits to rd,
+            immed8Bits to immed
+    ))
 }
 
 class Assembler(input: String) {

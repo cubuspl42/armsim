@@ -1,3 +1,14 @@
+val condBits = 28..31
+val iBit = 25..25
+val immed8Bits = 0..7
+val rotateImmBits = 8..11
+val rdBits = 12..15
+val rmBits = 0..3
+val rnBits = 16..19
+val sBit = 20..20
+val shiftImmBits = 7..11
+val shiftBits = 5..6
+
 val mnemonics = listOf(
         "ADC",
         "ADD",
