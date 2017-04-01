@@ -1,6 +1,6 @@
 class InstructionDecoder(private val handlers: List<Pair<InstructionMask, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val handler = handlers.first { (mask, function) ->
+        val handler = handlers.first { (mask, _) ->
             (instruction and mask.andMask) == mask.eqMask
         }.second
         handler(instruction)
@@ -16,7 +16,7 @@ fun decodeComponent(inst: Int, bits: IntRange): Int {
 class Vm(private val program: Program) {
     private val r = (0..15).map { 0 }.toMutableList()
 
-    private var ip = 0
+    private var ip = 0 // FIXME: r15
 
     private fun printRegisters() {
         println(r
