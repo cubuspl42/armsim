@@ -1,7 +1,7 @@
-class InstructionDecoder(private val handlers: List<Pair<InstructionMask, (Int) -> Unit>>) {
+class InstructionDecoder(private val handlers: List<Pair<InstructionDef, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val handler = handlers.first { (mask, _) ->
-            (instruction and mask.andMask) == mask.eqMask
+        val handler = handlers.first { (def, _) ->
+            (instruction and def.andMask) == def.eqMask
         }.second
         handler(instruction)
     }
@@ -42,8 +42,8 @@ class Vm(private val program: Program) {
     }
 
     private val decoder = InstructionDecoder(listOf(
-            addMask to this::add,
-            movMask to this::mov
+            Isa.add to this::add,
+            Isa.mov to this::mov
     ))
 
     fun step() {

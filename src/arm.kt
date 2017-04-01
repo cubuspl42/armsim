@@ -21,24 +21,35 @@ val mnemonics = listOf(
         "SUBS"
 )
 
+data class InstructionDef(
+        val mnemonic: String,
+        val andMask: Int,
+        val eqMask: Int,
+        val cond: Boolean,
+        val s: Boolean
+)
 
-data class InstructionMask(val andMask: Int, val eqMask: Int)
+object Isa {
+    val adc = InstructionDef("ADC",
+            0b00001101111000000000000000000000,
+            0b00000000101000000000000000000000,
+            cond = true, s = true)
 
-val adcMask = InstructionMask(
-        0b00001101111000000000000000000000,
-        0b00000000101000000000000000000000)
+    val add = InstructionDef("ADD",
+            0b00001101111000000000000000000000,
+            0b00000000100000000000000000000000,
+            cond = true, s = true)
 
-val addMask = InstructionMask(
-        0b00001101111000000000000000000000,
-        0b00000000100000000000000000000000)
+    val and = InstructionDef("AND",
+            0b00001101111000000000000000000000,
+            0b00000000000000000000000000000000,
+            cond = true, s = true)
 
-val andMask = InstructionMask(
-        0b00001101111000000000000000000000,
-        0b00000000000000000000000000000000)
-
-val movMask = InstructionMask(
-        0b00001101111000000000000000000000,
-        0b00000001101000000000000000000000)
+    val mov = InstructionDef("AND",
+            0b00001101111000000000000000000000,
+            0b00000001101000000000000000000000,
+            cond = true, s = true)
+}
 
 
 val MASK1 = 0b00001101111000000000000000000000
