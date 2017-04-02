@@ -1,11 +1,19 @@
+#panel {
+	margin-bottom: 8px;
+}
+
 code {
 	display: inline-block;
 }
 
-.line.selected {
+.line {
 	border: solid;
-	border-color: blue;
+	border-color: transparent;
 	border-width: 1px;
+}
+
+.line.selected {
+	border-color: blue;
 }
 
 .COMMENT {

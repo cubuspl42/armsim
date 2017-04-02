@@ -1,4 +1,5 @@
 import org.w3c.dom.Element
+import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import kotlin.browser.document
 
@@ -45,9 +46,8 @@ fun main(args: Array<String>) {
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
 
     val codeWrapper = document.getElementById("code-wrapper")!!
-    codeWrapper.appendChild(makeCodeElement(input))
-
-    codeWrapper.children[0]!!.children[0]!!.classList.add("selected")
+    val code = makeCodeElement(input)
+    codeWrapper.appendChild(code)
 
     println(Parser(Lexer(input)).parse())
 
@@ -57,5 +57,12 @@ fun main(args: Array<String>) {
     }
 
     val vm = Vm(program)
-    (1..32).forEach { vm.step() }
+//    (1..32).forEach { vm.step() }
+
+    val stepButton = document.getElementById("step-button")!!
+    stepButton.addEventListener("click", { ev: Event ->
+        vm.step()
+        code.getElementsByClassName("selected")[0]?.classList?.remove("selected")
+        code.children[vm.ip]!!.classList.add("selected")
+    })
 }
