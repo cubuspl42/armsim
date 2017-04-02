@@ -24,35 +24,9 @@ fun <T> combine3(
 
 
 data class InstructionCaps(
-        val condCode: ConditionCode?,
+        val cond: Condition?,
         val s: Boolean
 )
-
-enum class ConditionCode {
-    EQ {
-        override val opcode = 0b0000
-    },
-    NE {
-        override val opcode = 0b0001
-    },
-    CS {
-        override val opcode = 0b0010
-    },
-    HS {
-        override val opcode = 0b0010
-    },
-    CC {
-        override val opcode = 0b0011
-    },
-    LO {
-        override val opcode = 0b0011
-    },
-    AL {
-        override val opcode = 0b1110
-    };
-
-    open val opcode = 0b1111
-}
 
 class InstructionEncoder(
         private val handlers: Map<Instruction, (ArglistAst, InstructionCaps) -> Int>

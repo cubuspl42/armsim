@@ -49,17 +49,26 @@ enum class Instruction(
     )
 }
 
+enum class Condition(
+        val opcode: Int
+) {
+    EQ(0b0000),
+    NE(0b0001),
+    LT(0b1011),
+    GT(0b1100)
+}
+
 val mnemonics = Instruction.values().flatMap { inst ->
     val condList = if (inst.cond) {
-        listOf(null) + ConditionCode.values().toList()
+        listOf(null) + Condition.values().toList()
     } else listOf(null)
 
     val sList = if (inst.s) listOf(false, true) else listOf(false)
 
-    condList.combine(sList).map { (condCode, s) ->
-        val condInfix = condCode?.name ?: ""
+    condList.combine(sList).map { (cond, s) ->
+        val condInfix = cond?.name ?: ""
         val sPostfix = if (s) "S" else ""
         val fullMnemonic = inst.name + condInfix + sPostfix
-        fullMnemonic to Pair(inst, InstructionCaps(condCode, s))
+        fullMnemonic to Pair(inst, InstructionCaps(cond, s))
     }
 }.toMap()
