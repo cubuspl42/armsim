@@ -55,7 +55,8 @@ enum class Condition(
     EQ(0b0000),
     NE(0b0001),
     LT(0b1011),
-    GT(0b1100)
+    GT(0b1100),
+    AL(0b1110)
 }
 
 val mnemonics = Instruction.values().flatMap { inst ->

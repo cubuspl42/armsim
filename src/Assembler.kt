@@ -38,14 +38,16 @@ private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
     checkArgsSize(args, 3)
 
+    val cond = caps.cond?.opcode ?: Condition.AL.opcode
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
+    val s = if(caps.s) 1 else 0
 
     return encodeInstruction(ADD, listOf(
-            condBits to 0,
+            condBits to cond,
             iBit to 0,
-            sBit to 0,
+            sBit to s,
             rnBits to rn,
             rdBits to rd,
             rmBits to rm
@@ -86,12 +88,13 @@ private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
     checkArgsSize(args, 3)
 
+    val cond = caps.cond?.opcode ?: Condition.AL.opcode
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val (shifterOperand, i) = encodeShifterOperand(args[2])
 
     return encodeInstruction(SUB, listOf(
-            condBits to 0,
+            condBits to cond,
             iBit to i,
             sBit to if(caps.s) 1 else 0,
             rnBits to rn,

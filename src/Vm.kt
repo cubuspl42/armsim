@@ -1,4 +1,5 @@
 import Instruction.*
+import Condition.*
 
 class VmException(s: String) : Throwable(s)
 
@@ -65,23 +66,37 @@ class Vm(private val program: Program) {
     }
 
     fun add(inst: Int) {
-        val rd = decodeComponent(inst, rdBits)
-        val rn = decodeComponent(inst, rnBits)
-        val rm = decodeComponent(inst, rmBits)
-        val s = decodeComponent(inst, sBit)
+        val cond = decodeComponent(inst, condBits)
+        if(conditionPassed(cond)) {
+            val rd = decodeComponent(inst, rdBits)
+            val rn = decodeComponent(inst, rnBits)
+            val rm = decodeComponent(inst, rmBits)
+            val s = decodeComponent(inst, sBit)
 
-        val lhs = r[rn]
-        val rhs = r[rm]
-        val resultLong = lhs.toLong() + rhs.toLong()
+            val lhs = r[rn]
+            val rhs = r[rm]
+            val resultLong = lhs.toLong() + rhs.toLong()
 
-        println(">> ADD r$rd, r$rn, r$rm")
-        r[rd] = lhs + rhs
+            println(">> ADD r$rd, r$rn, r$rm")
+            r[rd] = lhs + rhs
 
-        if(s == 1) {
-            cpsr_r.n = if(r[rd] < 0) 1 else 0
-            cpsr_r.z = if(r[rd] == 0) 1 else 0
-            cpsr_r.c = resultLong.bit(32)
-            cpsr_r.v = if(willAdditionOverflow(lhs, rhs)) 1 else 0
+            if(s == 1) {
+                cpsr_r.n = if(r[rd] < 0) 1 else 0
+                cpsr_r.z = if(r[rd] == 0) 1 else 0
+                cpsr_r.c = resultLong.bit(32)
+                cpsr_r.v = if(willAdditionOverflow(lhs, rhs)) 1 else 0
+            }
+        }
+    }
+
+    private fun conditionPassed(cond: Int): Boolean {
+        return when(cond) {
+            AL.opcode -> true
+            EQ.opcode -> cpsr_r.z == 1
+            NE.opcode -> cpsr_r.z == 0
+            LT.opcode -> cpsr_r.n != cpsr_r.v
+            GT.opcode -> cpsr_r.z == 0 && cpsr_r.n == cpsr_r.v
+            else -> throw VmException("cond")
         }
     }
 

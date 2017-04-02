@@ -46,6 +46,38 @@ fun test_add1() {
     assertEq(vm.getRegisterValue(0), 7)
 }
 
+val src_addeq1 = """
+MOV r1, #5
+MOV r2, #2
+SUBS r0, r0, r0
+ADDEQ r0, r1, r2
+"""
+
+fun test_addeq1() {
+    val vm = assemble(src_addeq1)
+    vm.step()
+    vm.step()
+    vm.step()
+    vm.step()
+    assertEq(vm.getRegisterValue(0), 7)
+}
+
+val src_addeq2 = """
+MOV r1, #5
+MOV r2, #2
+SUBS r0, r2, r0
+ADDEQ r0, r1, r2
+"""
+
+fun test_addeq2() {
+    val vm = assemble(src_addeq2)
+    vm.step()
+    vm.step()
+    vm.step()
+    vm.step()
+    assertEq(vm.getRegisterValue(0), 2)
+}
+
 val src_sub1 = """
 MOV r1, #7
 MOV r2, #3
@@ -81,6 +113,8 @@ fun test() {
     test_vm()
     test_mov1()
     test_add1()
+    test_addeq1()
+    test_addeq2()
     test_sub1()
     test_subs1()
 }
