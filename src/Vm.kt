@@ -110,6 +110,9 @@ class Vm(private val program: Program) {
             val signedImmed24 = decodeComponent(inst, signedImmed24Bits)
             val deltaPc = signExtend(signedImmed24) shl 2
             val deltaIp = deltaPc / 4 // FIXME: PC/r15
+
+            println(">> B $deltaPc")
+
             ip += deltaIp
             --ip // FIXME
         }

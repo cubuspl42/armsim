@@ -31,5 +31,5 @@ fun main(args: Array<String>) {
     }
 
     val vm = Vm(program)
-    (1..6).forEach { vm.step() }
+    (1..32).forEach { vm.step() }
 }

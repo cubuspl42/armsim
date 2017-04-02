@@ -91,6 +91,22 @@ fun test_b1() {
     assertEq(vm.getRegisterValue(0), 0)
 }
 
+val src_bne1 = """
+MOV r1, #3
+foo SUBS r1, r1, #1
+ADD r2, r2, #1
+BNE foo
+MOV r3, #123
+"""
+
+fun test_bne1() {
+    val vm = assemble(src_bne1)
+    (1..11).forEach { vm.step() }
+    assertEq(vm.getRegisterValue(1), 0)
+    assertEq(vm.getRegisterValue(2), 3)
+    assertEq(vm.getRegisterValue(3), 123)
+}
+
 val src_sub1 = """
 MOV r1, #7
 MOV r2, #3
@@ -129,6 +145,7 @@ fun test() {
     test_addeq1()
     test_addeq2()
     test_b1()
+    test_bne1()
     test_sub1()
     test_subs1()
 }

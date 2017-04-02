@@ -12,7 +12,7 @@
         MOV  R0, #13         ; R0 accumulates total
         MOV  R1, #10        ; R1 counts from 10 down to 1
 again   ADD  R0, R0, R13
-        SUBS R1, R1, R2
+;        SUBS R1, R1, R2
         SUBS R1, R1, #1
         BNE  again
 halt    B    halt           ; infinite loop to stop computation

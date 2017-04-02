@@ -4,6 +4,10 @@ data class Program(val instructions: List<Int>)
 
 class AssemblerException(s: String) : Throwable(s)
 
+fun Int.trim(nBits: Int): Int {
+    return this and ((1 shl nBits) - 1)
+}
+
 private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
     val len = bits.last - bits.first + 1
     val mask = (1 shl len) - 1
@@ -18,6 +22,7 @@ fun encodeData(components: List<Pair<IntRange, Int>>): Int {
         encodeComponent(acc, bits, data)
     })
 }
+
 fun encodeInstruction(inst: Instruction, components: List<Pair<IntRange, Int>>): Int {
     return inst.eqMask or encodeData(components)
 }
@@ -31,7 +36,7 @@ fun checkArgsSize(args: List<ExprAst>, expectedSize: Int) {
 inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
     if (node is TExprAst) {
         return node
-    } else throw Exception()
+    } else throw AssemblerException("Expected ${TExprAst::class.simpleName}, got ${node::class.simpleName}")
 }
 
 private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
@@ -41,16 +46,16 @@ private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
     val cond = caps.cond?.opcode ?: Condition.AL.opcode
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-    val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
+    val (shifterOperand, i) = encodeShifterOperand(args[2])
     val s = if(caps.s) 1 else 0
 
     return encodeInstruction(ADD, listOf(
             condBits to cond,
-            iBit to 0,
+            iBit to i,
             sBit to s,
             rnBits to rn,
             rdBits to rd,
-            rmBits to rm
+            shifterOperandBits to shifterOperand
     ))
 }
 
@@ -120,7 +125,7 @@ class Assembler(input: String) {
         val label = castExpr<IdentAst>(args[0]).name
 
         val targetAddress = labels[label]!!
-        val signedImmed24 = targetAddress - locationCounter
+        val signedImmed24 = (targetAddress - locationCounter).trim(24)
 
         return encodeInstruction(B, listOf(
                 condBits to cond,
