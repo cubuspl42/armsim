@@ -27,12 +27,12 @@ data class Cpsr(
 
 fun Int.bit(index: Int): Int {
     val mask = 1 shl index
-    return if((this and mask) != 0) 1 else 0
+    return if ((this and mask) != 0) 1 else 0
 }
 
 fun Long.bit(index: Int): Int {
     val mask = 1L shl index
-    return if((this and mask) != 0L) 1 else 0
+    return if ((this and mask) != 0L) 1 else 0
 }
 
 
@@ -52,6 +52,10 @@ fun willSubtractionOverflow(left: Int, right: Int): Boolean {
     }
 }
 
+fun signExtend(i24: Int): Int {
+    return (i24 shl 8) shr 8
+}
+
 class Vm(private val program: Program) {
     private val r = (0..15).map { 0 }.toMutableList()
 
@@ -65,9 +69,20 @@ class Vm(private val program: Program) {
                 .joinToString(" / "))
     }
 
+    private fun conditionPassed(cond: Int): Boolean {
+        return when (cond) {
+            AL.opcode -> true
+            EQ.opcode -> cpsr_r.z == 1
+            NE.opcode -> cpsr_r.z == 0
+            LT.opcode -> cpsr_r.n != cpsr_r.v
+            GT.opcode -> cpsr_r.z == 0 && cpsr_r.n == cpsr_r.v
+            else -> throw VmException("cond")
+        }
+    }
+
     fun add(inst: Int) {
         val cond = decodeComponent(inst, condBits)
-        if(conditionPassed(cond)) {
+        if (conditionPassed(cond)) {
             val rd = decodeComponent(inst, rdBits)
             val rn = decodeComponent(inst, rnBits)
             val rm = decodeComponent(inst, rmBits)
@@ -80,23 +95,23 @@ class Vm(private val program: Program) {
             println(">> ADD r$rd, r$rn, r$rm")
             r[rd] = lhs + rhs
 
-            if(s == 1) {
-                cpsr_r.n = if(r[rd] < 0) 1 else 0
-                cpsr_r.z = if(r[rd] == 0) 1 else 0
+            if (s == 1) {
+                cpsr_r.n = if (r[rd] < 0) 1 else 0
+                cpsr_r.z = if (r[rd] == 0) 1 else 0
                 cpsr_r.c = resultLong.bit(32)
-                cpsr_r.v = if(willAdditionOverflow(lhs, rhs)) 1 else 0
+                cpsr_r.v = if (willAdditionOverflow(lhs, rhs)) 1 else 0
             }
         }
     }
 
-    private fun conditionPassed(cond: Int): Boolean {
-        return when(cond) {
-            AL.opcode -> true
-            EQ.opcode -> cpsr_r.z == 1
-            NE.opcode -> cpsr_r.z == 0
-            LT.opcode -> cpsr_r.n != cpsr_r.v
-            GT.opcode -> cpsr_r.z == 0 && cpsr_r.n == cpsr_r.v
-            else -> throw VmException("cond")
+    fun b(inst: Int) {
+        val cond = decodeComponent(inst, condBits)
+        if (conditionPassed(cond)) {
+            val signedImmed24 = decodeComponent(inst, signedImmed24Bits)
+            val deltaPc = signExtend(signedImmed24) shl 2
+            val deltaIp = deltaPc / 4 // FIXME: PC/r15
+            ip += deltaIp
+            --ip // FIXME
         }
     }
 
@@ -124,16 +139,17 @@ class Vm(private val program: Program) {
 
         r[rd] = lhs - rhs
 
-        if(s == 1) {
-            cpsr_r.n = if(r[rd] < 0) 1 else 0
-            cpsr_r.z = if(r[rd] == 0) 1 else 0
+        if (s == 1) {
+            cpsr_r.n = if (r[rd] < 0) 1 else 0
+            cpsr_r.z = if (r[rd] == 0) 1 else 0
             cpsr_r.c = 0 // FIXME
-            cpsr_r.v = if(willSubtractionOverflow(lhs, rhs)) 1 else 0
+            cpsr_r.v = if (willSubtractionOverflow(lhs, rhs)) 1 else 0
         }
     }
 
     private val decoder = InstructionDecoder(listOf(
             ADD to this::add,
+            B to this::b,
             MOV to this::mov,
             SUB to this::sub
     ))

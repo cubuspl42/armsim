@@ -34,7 +34,7 @@ class InstructionEncoder(
     fun encode(instAst: InstructionAst): Int {
         val fullMnemonic = instAst.mnemonic.value
         val (inst, caps) = mnemonics[fullMnemonic]!!
-        val handler = handlers[inst]!!
+        val handler = handlers[inst] ?: throw AssemblerException("Unrecognized mnemonic: $fullMnemonic")
         return handler(instAst.arglist, caps)
     }
 }

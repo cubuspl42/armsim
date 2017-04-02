@@ -106,14 +106,43 @@ private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
 
+    private val labels = ast.instructions.mapIndexedNotNull { index, instructionAst ->
+        instructionAst.label?.let { it.name to index}
+    }.toMap()
+
+    private var locationCounter = 0
+
+    private fun emitB(arglist: ArglistAst, caps: InstructionCaps): Int {
+        val args = arglist.args
+        checkArgsSize(args, 1)
+
+        val cond = caps.cond?.opcode ?: Condition.AL.opcode
+        val label = castExpr<IdentAst>(args[0]).name
+
+        val targetAddress = labels[label]!!
+        val signedImmed24 = targetAddress - locationCounter
+
+        return encodeInstruction(B, listOf(
+                condBits to cond,
+                signedImmed24Bits to signedImmed24
+        ))
+    }
+
     private val encoder = InstructionEncoder(mapOf(
             ADD to ::emitAdd,
+            B to this::emitB,
             MOV to ::emitMov,
             SUB to ::emitSub
     ))
 
+    fun encodeNextInstruction(instAst: InstructionAst): Int {
+        val inst = encoder.encode(instAst)
+        ++locationCounter
+        return inst
+    }
+
     fun assemble(): Program {
-        val instructions = ast.instructions.map { encoder.encode(it) }
+        val instructions = ast.instructions.map(this::encodeNextInstruction)
         return Program(instructions)
     }
 }
