@@ -1,3 +1,13 @@
+code {
+	display: inline-block;
+}
+
+.line.selected {
+	border: solid;
+	border-color: blue;
+	border-width: 1px;
+}
+
 .COMMENT {
 	color: green;
 }

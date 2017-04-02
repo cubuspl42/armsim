@@ -61,7 +61,8 @@ class Vm(private val program: Program) {
 
     private var cpsr_r = Cpsr(0, 0, 0, 0)
 
-    private var ip = 0 // FIXME: r15
+    var ip = 0 // FIXME: r15
+        private set
 
     private fun printRegisters() {
         println(r
