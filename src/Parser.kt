@@ -1,3 +1,5 @@
+class ParserException(s: String) : Throwable(s)
+
 class ArglistAst(val args: List<ExprAst>) {
     override fun toString() = args.joinToString(", ")
 }
@@ -14,6 +16,10 @@ class IdentAst(val name: String) : ExprAst() {
 
 class RegisterAst(val index: Int) : ExprAst() {
     override fun toString() = "R$index"
+}
+
+class ShiftAst(val operator: String, val arg: ExprAst) : ExprAst() {
+    override fun toString() = "$operator $arg"
 }
 
 class InstructionAst(
@@ -54,7 +60,7 @@ class Parser(private val lexer: Lexer) {
     private fun readExpectedToken(expectedTokenKind: TokenKind): Token {
         val token = readToken()
         if (token?.kind != expectedTokenKind) {
-            throw Exception("Expected $expectedTokenKind, got ${token?.kind}")
+            throw ParserException("Expected $expectedTokenKind, got ${token?.kind}")
         }
         return token
     }
@@ -70,12 +76,28 @@ class Parser(private val lexer: Lexer) {
         }
     }
 
+    private fun parseConst() = ConstAst(readExpectedToken(TokenKind.CONST).intValue)
+
+    private fun parseIdent() = IdentAst(readToken()!!.stringValue)
+
+    private fun parseRegister() = RegisterAst(readToken()!!.intValue)
+
+    private fun parseShift(): ShiftAst {
+        val operator = readExpectedToken(TokenKind.SHIFT_OPERATOR)
+        return ShiftAst(operator.stringValue, when(peekToken()?.kind) {
+            TokenKind.CONST -> parseConst()
+            TokenKind.REGISTER -> parseRegister()
+            else -> throw ParserException("Expected shift")
+        })
+    }
+
     private fun parseExpr(): ExprAst {
-        val token = readToken()
+        val token = peekToken()
         return when (token?.kind) {
-            TokenKind.CONST -> ConstAst(token.intValue)
-            TokenKind.IDENT -> IdentAst(token.stringValue)
-            TokenKind.REGISTER -> RegisterAst(token.intValue)
+            TokenKind.CONST -> parseConst()
+            TokenKind.IDENT -> parseIdent()
+            TokenKind.REGISTER -> parseRegister()
+            TokenKind.SHIFT_OPERATOR -> parseShift()
             else -> throw Exception("Expected expression, got ${token?.kind}")
         }
     }

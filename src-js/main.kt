@@ -2,6 +2,7 @@ import org.w3c.dom.Element
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import kotlin.browser.document
+import kotlin.dom.clear
 
 private val asmCodeId = "asm-code"
 
@@ -40,12 +41,27 @@ fun makeCodeElement(input: String): Element {
     return code
 }
 
+fun makeStatusElement(vm: Vm): Element {
+    val statusDiv = document.createElement("div")
+    statusDiv.className = "status"
+    (0..15).forEach {
+        val span = document.createElement("span")
+        span.textContent = "r$it = ${vm.getRegisterValue(it)}"
+        statusDiv.appendChild(span)
+    }
+    return statusDiv
+}
+
 fun main(args: Array<String>) {
 //    test()
 
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
 
     val codeWrapper = document.getElementById("code-wrapper")!!
+    val statusWrapper = document.getElementById("status-wrapper")!!
+
+    val stepButton = document.getElementById("step-button")!!
+
     val code = makeCodeElement(input)
     codeWrapper.appendChild(code)
 
@@ -57,12 +73,18 @@ fun main(args: Array<String>) {
     }
 
     val vm = Vm(program)
-//    (1..32).forEach { vm.step() }
 
-    val stepButton = document.getElementById("step-button")!!
-    stepButton.addEventListener("click", { ev: Event ->
-        vm.step()
+    fun updatePresentation() {
         code.getElementsByClassName("selected")[0]?.classList?.remove("selected")
         code.children[vm.ip]!!.classList.add("selected")
+        statusWrapper.clear()
+        statusWrapper.appendChild(makeStatusElement(vm))
+    }
+
+    updatePresentation()
+
+    stepButton.addEventListener("click", { ev: Event ->
+        vm.step()
+        updatePresentation()
     })
 }

@@ -76,3 +76,13 @@ val mnemonics = Instruction.values().flatMap { inst ->
         fullMnemonic to Pair(inst, InstructionCaps(cond, s))
     }
 }.toMap()
+
+enum class ShiftOperator {
+    LSL,
+    LSR,
+    ASR,
+    ROR,
+    RRX
+}
+
+val shiftOperators = ShiftOperator.values().map { it.name }

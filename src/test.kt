@@ -78,6 +78,16 @@ fun test_addeq2() {
     assertEq(vm.getRegisterValue(0), 2)
 }
 
+val src_and1 = """
+ANDS r0, r0, #1
+"""
+
+fun test_and1() {
+    val vm = assemble(src_and1)
+    vm.step()
+    assertEq(vm.getRegisterValue(0), 0)
+}
+
 val src_b1 = """
 B foo
 MOV r0, #123
@@ -138,14 +148,36 @@ fun test_subs1() {
     assertEq(vm.cpsr.v, 0)
 }
 
+val src_program1 = """
+        MOV  R0, #5         ; R0 is current number
+        MOV  R1, #0         ; R1 is count of number of iterations
+again   ADD  R1, R1, #1     ; increment number of iterations
+        ANDS R0, R0, #1     ; test whether R0 is odd
+        BEQ  even
+        ADD  R0, R0, R0, LSL #1 ; if odd, set R0 = R0 + (R0 << 1) + 1
+        ADD  R0, R0, #1     ; and repeat (guaranteed R0 > 1)
+        B    again
+even    MOV  R0, R0, ASR #1 ; if even, set R0 = R0 >> 1
+        SUBS R7, R0, #1     ; and repeat if R0 != 1
+        BNE  again
+halt    B    halt           ; infinite loop to stop computation
+"""
+
+fun test_program1() {
+    val vm = assemble(src_program1)
+    (1..64).forEach { vm.step() }
+}
+
 fun test() {
     test_vm()
     test_mov1()
     test_add1()
     test_addeq1()
     test_addeq2()
+    test_and1()
     test_b1()
     test_bne1()
     test_sub1()
     test_subs1()
+    test_program1()
 }

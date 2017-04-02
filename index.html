@@ -10,15 +10,20 @@
 	<button id="step-button">Step</button>
 </div>
 <div id="code-wrapper"></div>
+<div id="status-wrapper"></div>
 <script id="asm-code" type="asm">
-        MOV  R2, #1
-        MOV  R0, #13         ; R0 accumulates total
-        MOV  R1, #10        ; R1 counts from 10 down to 1
-again   ADD  R0, R0, R13
-        SUBS R1, R1, #1
+        MOV  R0, #5         ; R0 is current number
+        MOV  R1, #0         ; R1 is count of number of iterations
+again   ADD  R1, R1, #1     ; increment number of iterations
+        ANDS R0, R0, #1     ; test whether R0 is odd
+        BEQ  even
+        ADD  R0, R0, R0, LSL #1 ; if odd, set R0 = R0 + (R0 << 1) + 1
+        ADD  R0, R0, #1     ; and repeat (guaranteed R0 > 1)
+        B    again
+even    MOV  R0, R0, ASR #1 ; if even, set R0 = R0 >> 1
+        SUBS R7, R0, #1     ; and repeat if R0 != 1
         BNE  again
 halt    B    halt           ; infinite loop to stop computation
-        MOV  R2, #123
 </script>
 <script type="text/javascript" src="out/production/armsim/lib/kotlin.js"></script>
 <script type="text/javascript" src="out/production/armsim/armsim.js"></script>

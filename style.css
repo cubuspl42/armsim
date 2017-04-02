@@ -16,6 +16,11 @@ code {
 	border-color: blue;
 }
 
+.status span {
+	display: block;
+	font-family: monospace;
+}
+
 .COMMENT {
 	color: green;
 }
@@ -34,4 +39,8 @@ code {
 
 .REGISTER {
 	color: red;
+}
+
+.SHIFT_OPERATOR {
+	color: orange;
 }

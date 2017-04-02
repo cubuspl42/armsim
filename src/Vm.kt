@@ -105,6 +105,28 @@ class Vm(private val program: Program) {
         }
     }
 
+    fun and(inst: Int) {
+        val cond = decodeComponent(inst, condBits)
+        if (conditionPassed(cond)) {
+            val rd = decodeComponent(inst, rdBits)
+            val rn = decodeComponent(inst, rnBits)
+            val rm = decodeComponent(inst, rmBits)
+            val s = decodeComponent(inst, sBit)
+
+            val lhs = r[rn]
+            val rhs = r[rm]
+
+            println(">> AND r$rd, r$rn, r$rm")
+            r[rd] = lhs and rhs
+
+            if (s == 1) {
+                cpsr_r.n = if (r[rd] < 0) 1 else 0
+                cpsr_r.z = if (r[rd] == 0) 1 else 0
+                cpsr_r.c = 0 // FIXME
+            }
+        }
+    }
+
     fun b(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
@@ -153,6 +175,7 @@ class Vm(private val program: Program) {
 
     private val decoder = InstructionDecoder(listOf(
             ADD to this::add,
+            AND to this::and,
             B to this::b,
             MOV to this::mov,
             SUB to this::sub

@@ -15,6 +15,7 @@ enum class TokenKind {
     MNEMONIC,
     REGISTER,
     WHITESPACE,
+    SHIFT_OPERATOR
 }
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
@@ -93,6 +94,7 @@ class Lexer(private val input: String) : Iterable<Token> {
         }
         val kind = when {
             name in mnemonics -> TokenKind.MNEMONIC
+            name in shiftOperators -> TokenKind.SHIFT_OPERATOR
             else -> TokenKind.IDENT
         }
         return Token(kind, range, stringValue = name)
