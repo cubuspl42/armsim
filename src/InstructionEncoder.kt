@@ -55,19 +55,19 @@ enum class ConditionCode {
 }
 
 class InstructionEncoder(
-        private val handlers: List<Pair<InstructionDef, (ArglistAst, InstructionCaps) -> Int>>
+        private val handlers: List<Pair<Instruction, (ArglistAst, InstructionCaps) -> Int>>
 ) {
-    val mnemonicMap = handlers.flatMap { (def, handler) ->
-        val condList = if (def.cond) {
+    val mnemonicMap = handlers.flatMap { (inst, handler) ->
+        val condList = if (inst.cond) {
             listOf(null) + ConditionCode.values().toList()
         } else listOf(null)
 
-        val sList = if (def.s) listOf(false, true) else listOf(false)
+        val sList = if (inst.s) listOf(false, true) else listOf(false)
 
         condList.combine(sList).map { (condCode, s) ->
             val condInfix = condCode?.name ?: ""
             val sPostfix = if (s) "S" else ""
-            val fulLMnemonic = def.mnemonic + condInfix + sPostfix
+            val fulLMnemonic = inst.name + condInfix + sPostfix
             fulLMnemonic to Pair(handler, InstructionCaps(condCode, s))
         }
     }.toMap()

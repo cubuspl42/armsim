@@ -1,3 +1,5 @@
+import Instruction.*
+
 data class Program(val instructions: List<Int>)
 
 private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
@@ -11,8 +13,8 @@ fun encodeData(components: List<Pair<IntRange, Int>>): Int {
         encodeComponent(acc, bits, data)
     })
 }
-fun encodeInstruction(pattern: Int, components: List<Pair<IntRange, Int>>): Int {
-    return pattern or encodeData(components)
+fun encodeInstruction(inst: Instruction, components: List<Pair<IntRange, Int>>): Int {
+    return inst.eqMask or encodeData(components)
 }
 
 fun checkArgsSize(args: List<ExprAst>, expectedSize: Int) {
@@ -35,7 +37,7 @@ private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
     val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
 
-    return encodeInstruction(ADD_PATTERN, listOf(
+    return encodeInstruction(ADD, listOf(
             condBits to 0,
             iBit to 0,
             sBit to 0,
@@ -52,7 +54,7 @@ private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val immed = castExpr<ConstAst>(args[1]).value // FIXME: check 8b
 
-    return encodeInstruction(MOV_PATTERN, listOf(
+    return encodeInstruction(MOV, listOf(
             condBits to 0,
             iBit to 0,
             sBit to 0,
@@ -83,7 +85,7 @@ private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
     val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val (shifterOperand, i) = encodeShifterOperand(args[2])
 
-    return encodeInstruction(Isa.sub.eqMask, listOf(
+    return encodeInstruction(SUB, listOf(
             condBits to 0,
             iBit to i,
             sBit to if(caps.s) 1 else 0,
@@ -97,9 +99,9 @@ class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
 
     private val encoder = InstructionEncoder(listOf(
-            Isa.add to ::emitAdd,
-            Isa.mov to ::emitMov,
-            Isa.sub to ::emitSub
+            ADD to ::emitAdd,
+            MOV to ::emitMov,
+            SUB to ::emitSub
     ))
 
     fun assemble(): Program {

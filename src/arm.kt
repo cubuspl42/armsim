@@ -10,7 +10,7 @@ val shiftImmBits = 7..11
 val shiftBits = 5..6
 val shifterOperandBits = 0..11
 
-val mnemonics = listOf( // FIXME: sync with Isa
+val mnemonics = listOf(// FIXME: sync with Isa
         "ADC",
         "ADD",
         "AND",
@@ -22,53 +22,41 @@ val mnemonics = listOf( // FIXME: sync with Isa
         "SUBS"
 )
 
-data class InstructionDef(
-        val mnemonic: String,
+enum class Instruction(
         val andMask: Int,
         val eqMask: Int,
-        val cond: Boolean,
-        val s: Boolean
-)
-
-object Isa {
-    val adc = InstructionDef("ADC",
+        val l: Boolean = false,
+        val cond: Boolean = false,
+        val s: Boolean = false
+) {
+    ADC(
             0b00001101111000000000000000000000,
             0b00000000101000000000000000000000,
-            cond = true, s = true)
-
-    val add = InstructionDef("ADD",
+            cond = true, s = true
+    ),
+    ADD(
             0b00001101111000000000000000000000,
             0b00000000100000000000000000000000,
-            cond = true, s = true)
-
-    val and = InstructionDef("AND",
+            cond = true, s = true
+    ),
+    AND(
             0b00001101111000000000000000000000,
             0b00000000000000000000000000000000,
-            cond = true, s = true)
-
-    val mov = InstructionDef("MOV",
+            cond = true, s = true
+    ),
+    B(
+            0b00001110000000000000000000000000,
+            0b00001010000000000000000000000000,
+            l = true
+    ),
+    MOV(
             0b00001101111000000000000000000000,
             0b00000001101000000000000000000000,
-            cond = true, s = true)
-
-    val sub = InstructionDef("SUB",
+            cond = true, s = true
+    ),
+    SUB(
             0b00001101111000000000000000000000,
             0b00000000010000000000000000000000,
-            cond = true, s = true)
+            cond = true, s = true
+    )
 }
-
-
-val MASK1 = 0b00001101111000000000000000000000
-
-val ADC_MASK = MASK1
-val ADC_PATTERN = 0b00000000101000000000000000000000
-
-val ADD_MASK = MASK1
-val ADD_PATTERN = 0b00000000100000000000000000000000
-
-val AND_MASK = MASK1
-
-val B_MASK = 0b00001110000000000000000000000000
-
-val MOV_MASK = MASK1
-val MOV_PATTERN = 0b00000001101000000000000000000000

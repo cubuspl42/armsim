@@ -1,7 +1,9 @@
-class InstructionDecoder(private val handlers: List<Pair<InstructionDef, (Int) -> Unit>>) {
+import Instruction.*
+
+class InstructionDecoder(private val handlers: List<Pair<Instruction, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val handler = handlers.firstOrNull { (def, _) ->
-            (instruction and def.andMask) == def.eqMask
+        val handler = handlers.firstOrNull { (inst, _) ->
+            (instruction and inst.andMask) == inst.eqMask
         }?.second ?: throw Exception("Unrecognized instruction")
         handler(instruction)
     }
@@ -56,9 +58,9 @@ class Vm(private val program: Program) {
     }
 
     private val decoder = InstructionDecoder(listOf(
-            Isa.add to this::add,
-            Isa.mov to this::mov,
-            Isa.sub to this::sub
+            ADD to this::add,
+            MOV to this::mov,
+            SUB to this::sub
     ))
 
     fun step() {
