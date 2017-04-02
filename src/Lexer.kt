@@ -25,13 +25,13 @@ class Lexer(private val input: String) : Iterable<Token> {
     private var inputOffset = 0
 
     private fun readChar(): Char? {
-        if (inputOffset < input.size) {
+        if (inputOffset < input.length) {
             return input[inputOffset++]
         } else return null
     }
 
     private fun peekChar(): Char? {
-        if (inputOffset < input.size) {
+        if (inputOffset < input.length) {
             return input[inputOffset]
         } else return null
     }

@@ -68,4 +68,8 @@ class Vm(private val program: Program) {
         decoder.decode(inst)
         printRegisters()
     }
+
+    fun getRegisterValue(index: Int): Int {
+        return r[index]
+    }
 }

@@ -33,8 +33,8 @@ private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
     checkArgsSize(args, 3)
 
-    val rn = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val rm = castExpr<RegisterAst>(args[2]).index // FIXME: check 0-15
 
     return encodeInstruction(ADD, listOf(

@@ -4,6 +4,8 @@ import kotlin.browser.document
 private val asmCodeId = "asm-code"
 
 fun main(args: Array<String>) {
+    test()
+
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
 
     val code = document.getElementById("code")!!
