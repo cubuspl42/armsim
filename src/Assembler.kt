@@ -2,7 +2,12 @@ import Instruction.*
 
 data class Program(val instructions: List<Int>)
 
+class AssemblerException(s: String) : Throwable(s)
+
 private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
+    val len = bits.last - bits.first + 1
+    val mask = (1 shl len) - 1
+    if(data and mask.inv() != 0) throw AssemblerException("Data overlap")
     val offset = bits.first
     return inst or (data shl offset)
 }
@@ -81,8 +86,8 @@ private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
     checkArgsSize(args, 3)
 
-    val rn = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rd = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
     val (shifterOperand, i) = encodeShifterOperand(args[2])
 
     return encodeInstruction(SUB, listOf(
@@ -98,7 +103,7 @@ private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
 
-    private val encoder = InstructionEncoder(listOf(
+    private val encoder = InstructionEncoder(mapOf(
             ADD to ::emitAdd,
             MOV to ::emitMov,
             SUB to ::emitSub

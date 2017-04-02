@@ -10,18 +10,6 @@ val shiftImmBits = 7..11
 val shiftBits = 5..6
 val shifterOperandBits = 0..11
 
-val mnemonics = listOf(// FIXME: sync with Isa
-        "ADC",
-        "ADD",
-        "AND",
-        "B",
-        "BL",
-        "BNE",
-        "MOV",
-        "SUB",
-        "SUBS"
-)
-
 enum class Instruction(
         val andMask: Int,
         val eqMask: Int,
@@ -60,3 +48,18 @@ enum class Instruction(
             cond = true, s = true
     )
 }
+
+val mnemonics = Instruction.values().flatMap { inst ->
+    val condList = if (inst.cond) {
+        listOf(null) + ConditionCode.values().toList()
+    } else listOf(null)
+
+    val sList = if (inst.s) listOf(false, true) else listOf(false)
+
+    condList.combine(sList).map { (condCode, s) ->
+        val condInfix = condCode?.name ?: ""
+        val sPostfix = if (s) "S" else ""
+        val fullMnemonic = inst.name + condInfix + sPostfix
+        fullMnemonic to Pair(inst, InstructionCaps(condCode, s))
+    }
+}.toMap()
