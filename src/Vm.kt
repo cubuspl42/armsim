@@ -3,10 +3,10 @@ import Condition.*
 
 class VmException(s: String) : Throwable(s)
 
-class InstructionDecoder(private val handlers: List<Pair<Instruction, (Int) -> Unit>>) {
+class InstructionDecoder(private val handlers: List<Pair<Mask, (Int) -> Unit>>) {
     fun decode(instruction: Int) {
-        val handler = handlers.firstOrNull { (inst, _) ->
-            (instruction and inst.andMask) == inst.eqMask
+        val handler = handlers.firstOrNull { (mask, _) ->
+            ((instruction and mask.andMask) xor mask.xorMask) == 0
         }?.second ?: throw VmException("Unrecognized instruction")
         handler(instruction)
     }
@@ -56,6 +56,16 @@ fun signExtend(i24: Int): Int {
     return (i24 shl 8) shr 8
 }
 
+private fun op(opcode: Int, rnData: Int, shifterOperand: Int): Int {
+    return when (opcode) {
+        MOV.opcode -> shifterOperand
+        ADD.opcode -> rnData + shifterOperand
+        AND.opcode -> rnData and shifterOperand
+        SUB.opcode -> rnData - shifterOperand
+        else -> throw VmException("opcode")
+    } // FIXME: rest
+}
+
 class Vm(private val program: Program) {
     private val r = (0..15).map { 0 }.toMutableList()
 
@@ -81,110 +91,90 @@ class Vm(private val program: Program) {
         }
     }
 
-    fun add(inst: Int) {
+    fun execDataProcessingImmediateShiftInstruction(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
-            val rd = decodeComponent(inst, rdBits)
-            val rn = decodeComponent(inst, rnBits)
-            val rm = decodeComponent(inst, rmBits)
+            val opcode = decodeComponent(inst, opcodeBits)
             val s = decodeComponent(inst, sBit)
+            val rn = decodeComponent(inst, rnBits)
+            val rd = decodeComponent(inst, rdBits)
+            val shiftImm = decodeComponent(inst, shiftImmBits)
+            val shift = decodeComponent(inst, shiftBits)
+            val rm = decodeComponent(inst, rmBits)
 
-            val lhs = r[rn]
-            val rhs = r[rm]
-            val resultLong = lhs.toLong() + rhs.toLong()
+            val shifterOperand = when (shift) {
+                ShiftOperator.LSL.opcode -> r[rm] shl shiftImm
+                ShiftOperator.ASR.opcode -> r[rm] shr shiftImm
+                else -> throw VmException("shift")
+            } // FIXME: rest
 
-            println(">> ADD r$rd, r$rn, r$rm")
-            r[rd] = lhs + rhs
+            val shifterCarryOut = r[rm].bit(32 - shiftImm)
+
+            r[rd] = op(opcode, r[rn], shifterOperand)
 
             if (s == 1) {
-                cpsr_r.n = if (r[rd] < 0) 1 else 0
+                cpsr_r.n = r[rd].bit(31)
                 cpsr_r.z = if (r[rd] == 0) 1 else 0
-                cpsr_r.c = resultLong.bit(32)
-                cpsr_r.v = if (willAdditionOverflow(lhs, rhs)) 1 else 0
+                cpsr_r.c = shifterCarryOut
+                // V Flag = unaffected
             }
         }
     }
 
-    fun and(inst: Int) {
+    fun execDataProcessingImmediateInstruction(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
-            val rd = decodeComponent(inst, rdBits)
-            val rn = decodeComponent(inst, rnBits)
-            val rm = decodeComponent(inst, rmBits)
+            val opcode = decodeComponent(inst, opcodeBits)
             val s = decodeComponent(inst, sBit)
+            val rn = decodeComponent(inst, rnBits)
+            val rd = decodeComponent(inst, rdBits)
+            val rotateImm = decodeComponent(inst, rotateImmBits)
+            val immed8 = decodeComponent(inst, immed8Bits)
 
-            val lhs = r[rn]
-            val rhs = r[rm]
+            val shifterOperand = immed8 shr (rotateImm * 2)
+            val shifterCarryOut = if (rotateImm == 0) cpsr_r.c else shifterOperand.bit(31)
 
-            println(">> AND r$rd, r$rn, r$rm")
-            r[rd] = lhs and rhs
+            r[rd] = op(opcode, r[rn], shifterOperand)
 
             if (s == 1) {
-                cpsr_r.n = if (r[rd] < 0) 1 else 0
+                cpsr_r.n = r[rd].bit(31)
                 cpsr_r.z = if (r[rd] == 0) 1 else 0
-                cpsr_r.c = 0 // FIXME
+                cpsr_r.c = shifterCarryOut
+                // V Flag = unaffected
             }
         }
     }
 
-    fun b(inst: Int) {
+    fun execBranchInstruction(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
+            // FIXME: L
             val signedImmed24 = decodeComponent(inst, signedImmed24Bits)
+
             val deltaPc = signExtend(signedImmed24) shl 2
             val deltaIp = deltaPc / 4 // FIXME: PC/r15
-
-            println(">> B $deltaPc")
 
             ip += deltaIp
             --ip // FIXME
         }
     }
 
-    fun mov(inst: Int) {
-        val rd = decodeComponent(inst, rdBits)
-        val immed8 = decodeComponent(inst, immed8Bits)
-
-        println(">> MOV r$rd, #$immed8")
-        r[rd] = immed8
-    }
-
-    fun sub(inst: Int) {
-        val rd = decodeComponent(inst, rdBits)
-        val rn = decodeComponent(inst, rnBits)
-        val i = decodeComponent(inst, iBit)
-        val rm = decodeComponent(inst, rmBits)
-        val immed8 = decodeComponent(inst, immed8Bits)
-        val s = decodeComponent(inst, sBit)
-
-        val lhs = r[rn]
-        val rhs = if (i > 0) immed8 else r[rm]
-
-        if (i > 0) println(">> SUB r$rd, r$rn, #$immed8")
-        else println(">> SUB r$rd, r$rn, r$rm")
-
-        r[rd] = lhs - rhs
-
-        if (s == 1) {
-            cpsr_r.n = if (r[rd] < 0) 1 else 0
-            cpsr_r.z = if (r[rd] == 0) 1 else 0
-            cpsr_r.c = 0 // FIXME
-            cpsr_r.v = if (willSubtractionOverflow(lhs, rhs)) 1 else 0
-        }
-    }
-
     private val decoder = InstructionDecoder(listOf(
-            ADD to this::add,
-            AND to this::and,
-            B to this::b,
-            MOV to this::mov,
-            SUB to this::sub
+            dataProcessingImmediateShiftMask to this::execDataProcessingImmediateShiftInstruction,
+            dataProcessingImmediateMask to this::execDataProcessingImmediateInstruction,
+            branchMask to this::execBranchInstruction
     ))
 
     fun step() {
         val inst = program.instructions[ip++]
         decoder.decode(inst)
         printRegisters()
+    }
+
+    fun run() {
+        while (ip in program.instructions.indices) {
+            step()
+        }
     }
 
     fun getRegisterValue(index: Int): Int {

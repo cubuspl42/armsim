@@ -89,9 +89,9 @@ fun test_and1() {
 }
 
 val src_b1 = """
-B foo
+B op
 MOV r0, #123
-foo MOV r1, #0
+op MOV r1, #0
 """
 
 fun test_b1() {
@@ -103,9 +103,9 @@ fun test_b1() {
 
 val src_bne1 = """
 MOV r1, #3
-foo SUBS r1, r1, #1
+op SUBS r1, r1, #1
 ADD r2, r2, #1
-BNE foo
+BNE op
 MOV r3, #123
 """
 

@@ -27,103 +27,60 @@ fun encodeInstruction(inst: Instruction, components: List<Pair<IntRange, Int>>):
     return inst.eqMask or encodeData(components)
 }
 
-fun checkArgsSize(args: List<ExprAst>, expectedSize: Int) {
-    if (args.size != expectedSize) {
-        throw AssemblerException("Expected $expectedSize args, got ${args.size}")
-    }
-}
-
 inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
     if (node is TExprAst) {
         return node
     } else throw AssemblerException("Expected ${TExprAst::class.simpleName}, got ${node::class.simpleName}")
 }
 
-private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
-    val args = arglist.args
-//    checkArgsSize(args, 3)
-
-    val cond = caps.cond?.opcode ?: Condition.AL.opcode
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-    val (shifterOperand, i) = encodeShifterOperand(args.drop(2))
-    val s = if (caps.s) 1 else 0
-
-    return encodeInstruction(ADD, listOf(
-            condBits to cond,
-            iBit to i,
-            sBit to s,
-            rnBits to rn,
+private fun encodeRegisters(rd: Int = 0, rn: Int = 0): Int {
+    return encodeData(listOf(
             rdBits to rd,
-            shifterOperandBits to shifterOperand
+            rnBits to rn
     ))
 }
 
-
-private fun emitAnd(arglist: ArglistAst, caps: InstructionCaps): Int {
-    val args = arglist.args
-//    checkArgsSize(args, 3)
-
-    val cond = caps.cond?.opcode ?: Condition.AL.opcode
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-    val (shifterOperand, i) = encodeShifterOperand(args.drop(2))
-    val s = if (caps.s) 1 else 0
-
-    return encodeInstruction(AND, listOf(
-            condBits to cond,
-            iBit to i,
-            sBit to s,
-            rnBits to rn,
-            rdBits to rd,
-            shifterOperandBits to shifterOperand
+private fun encodeCaps(inst: Instruction, caps: InstructionCaps): Int {
+    val condData = if (inst.cond) caps.cond?.opcode ?: Condition.AL.opcode else Condition.AL.opcode
+    val s = if (inst.s && caps.s) 1 else 0
+    return encodeData(listOf(
+            condBits to condData,
+            sBit to s
     ))
 }
 
-private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
-    val args = arglist.args
-//    checkArgsSize(args, 2)
-
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val (shifterOperand, i) = encodeShifterOperand(args.drop(1))
-
-    return encodeInstruction(MOV, listOf(
-            condBits to 0,
-            iBit to i,
-            sBit to 0,
-            rdBits to rd,
-            shifterOperandBits to shifterOperand
-    ))
-}
-
-private fun encodeShifterOperand(shifterOperandArgs: List<ExprAst>): Pair<Int, Int> {
-    return when (shifterOperandArgs.size) {
+private fun encodeShift(shifterOperand: List<ExprAst>): Int {
+    return when (shifterOperand.size) {
         1 -> {
-            val onlyArg = shifterOperandArgs.first()
-            when(onlyArg) {
+            val onlyArg = shifterOperand.first()
+            when (onlyArg) {
                 is RegisterAst -> {
                     val rm = castExpr<RegisterAst>(onlyArg).index // FIXME: check 0-15
-                    Pair(encodeData(listOf(rmBits to rm)), 0)
+                    encodeData(listOf(rmBits to rm))
                 }
                 is ConstAst -> {
                     val immed = castExpr<ConstAst>(onlyArg).value
-                    Pair(encodeData(listOf(immed8Bits to immed)), 1)
+                    encodeData(listOf(iBit to 1, immed8Bits to immed)) // FIXME: rotate
                 }
                 else -> throw AssemblerException("Expected register or constant")
             }
         }
         2 -> {
-            val rm = castExpr<RegisterAst>(shifterOperandArgs[0]).index
-            val shift = castExpr<ShiftAst>(shifterOperandArgs[1])
+            val rm = castExpr<RegisterAst>(shifterOperand[0]).index
+            val shift = castExpr<ShiftAst>(shifterOperand[1])
             val shiftOperator = ShiftOperator.valueOf(shift.operator)
-            when(shift.arg) {
+            when (shift.arg) {
                 is RegisterAst -> {
                     val rs = castExpr<RegisterAst>(shift.arg).index // FIXME: check 0-15
-                    Pair(encodeData(listOf(rmBits to rm)), 0) // FIXME: !
+                    encodeData(listOf(rmBits to rm)) // FIXME: bits[4], bits[7], rs
                 }
                 is ConstAst -> {
                     val shiftImm = castExpr<ConstAst>(shift.arg).value
-                    Pair(encodeData(listOf(shiftImmBits to shiftImm)), 1) // FIXME: !
+                    encodeData(listOf(
+                            shiftImmBits to shiftImm,
+                            shiftBits to shiftOperator.opcode,
+                            rmBits to rm
+                    ))
                 }
                 else -> throw AssemblerException("Expected register or constant")
             }
@@ -132,23 +89,52 @@ private fun encodeShifterOperand(shifterOperandArgs: List<ExprAst>): Pair<Int, I
     }
 }
 
-private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
+private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
     val args = arglist.args
-//    checkArgsSize(args, 3)
 
-    val cond = caps.cond?.opcode ?: Condition.AL.opcode
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-    val (shifterOperand, i) = encodeShifterOperand(args.drop(2))
 
-    return encodeInstruction(SUB, listOf(
-            condBits to cond,
-            iBit to i,
-            sBit to if (caps.s) 1 else 0,
-            rnBits to rn,
-            rdBits to rd,
-            shifterOperandBits to shifterOperand
-    ))
+    return ADD.eqMask or
+            encodeRegisters(rd = rd, rn = rn) or
+            encodeCaps(ADD, caps) or
+            encodeShift(args.drop(2))
+}
+
+
+private fun emitAnd(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
+
+    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+
+    return AND.eqMask or
+            encodeRegisters(rd = rd, rn = rn) or
+            encodeCaps(AND, caps) or
+            encodeShift(args.drop(2))
+}
+
+private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
+
+    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+
+    return MOV.eqMask or
+            encodeRegisters(rd = rd) or
+            encodeCaps(MOV, caps) or
+            encodeShift(args.drop(1))
+}
+
+private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
+    val args = arglist.args
+
+    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+
+    return SUB.eqMask or
+            encodeRegisters(rd = rd, rn = rn) or
+            encodeCaps(SUB, caps) or
+            encodeShift(args.drop(2))
 }
 
 class Assembler(input: String) {
@@ -162,7 +148,6 @@ class Assembler(input: String) {
 
     private fun emitB(arglist: ArglistAst, caps: InstructionCaps): Int {
         val args = arglist.args
-        checkArgsSize(args, 1)
 
         val cond = caps.cond?.opcode ?: Condition.AL.opcode
         val label = castExpr<IdentAst>(args[0]).name

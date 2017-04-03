@@ -83,7 +83,7 @@ fun main(args: Array<String>) {
 
     updatePresentation()
 
-    stepButton.addEventListener("click", { ev: Event ->
+    stepButton.addEventListener("click", {
         vm.step()
         updatePresentation()
     })
