@@ -20,7 +20,11 @@ enum class TokenKind {
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
 
+class LexerException(s: String) : Exception(s)
+
 val inlineWhitespace = listOf(' ', '\t')
+
+val registerRegex = Regex("""[rR](\d+)""")
 
 class Lexer(private val input: String) : Iterable<Token> {
     private var inputOffset = 0
@@ -85,19 +89,27 @@ class Lexer(private val input: String) : Iterable<Token> {
 
     private fun readEol() = readCharToken(TokenKind.EOL, '\n')
 
-    private fun readIdentOrMnemonic(): Token {
+    private fun readIdentAlike(): Token {
         var name = ""
         val range = makeRange {
-            while (peekChar()?.isLetter() == true) {
+            while (peekChar()?.isLetter() == true || peekChar()?.isDigit() == true) {
                 name += readChar()
             }
         }
-        val kind = when {
-            name in mnemonics -> TokenKind.MNEMONIC
-            name in shiftOperators -> TokenKind.SHIFT_OPERATOR
-            else -> TokenKind.IDENT
+
+        val m = registerRegex.matchEntire(name)
+
+        if(m != null) {
+            val index = m.groups[1]!!.value.toInt()
+            return Token(TokenKind.REGISTER, range, intValue = index)
+        } else {
+            val kind = when {
+                name in mnemonics -> TokenKind.MNEMONIC
+                name in shiftOperators -> TokenKind.SHIFT_OPERATOR
+                else -> TokenKind.IDENT
+            }
+            return Token(kind, range, stringValue = name)
         }
-        return Token(kind, range, stringValue = name)
     }
 
     private fun readRegister(): Token {
@@ -124,14 +136,13 @@ class Lexer(private val input: String) : Iterable<Token> {
 
         return when {
             c == null -> null
-            c.toLowerCase() == 'r' -> readRegister()
             c == ',' -> readComma()
             c == ';' -> readComment()
             c == '#' -> readConst()
             c == '\n' -> readEol()
-            c.isLetter() -> readIdentOrMnemonic()
+            c.isLetter() -> readIdentAlike()
             c in inlineWhitespace -> readWhitespace()
-            else -> throw Exception()
+            else -> throw LexerException("Unexpected character: `$c`")
         }
     }
 

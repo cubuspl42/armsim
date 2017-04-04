@@ -1,4 +1,5 @@
 import Instruction.*
+import InstructionCategory.*
 
 data class Program(val instructions: List<Int>)
 
@@ -11,7 +12,7 @@ fun Int.trim(nBits: Int): Int {
 private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
     val len = bits.last - bits.first + 1
     val mask = (1 shl len) - 1
-    if (data and mask.inv() != 0) throw AssemblerException("Data overlap")
+    if (data and mask.inv() != 0) throw AssemblerException("$data does not fit in bits $bits")
     val offset = bits.first
     return inst or (data shl offset)
 }
@@ -23,8 +24,8 @@ fun encodeData(components: List<Pair<IntRange, Int>>): Int {
     })
 }
 
-fun encodeInstruction(inst: Instruction, components: List<Pair<IntRange, Int>>): Int {
-    return inst.eqMask or encodeData(components)
+fun encodeInstruction(mask: Mask, components: List<Pair<IntRange, Int>>): Int {
+    return mask.xorMask or encodeData(components)
 }
 
 inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
@@ -41,8 +42,8 @@ private fun encodeRegisters(rd: Int = 0, rn: Int = 0): Int {
 }
 
 private fun encodeCaps(inst: Instruction, caps: InstructionCaps): Int {
-    val condData = if (inst.cond) caps.cond?.opcode ?: Condition.AL.opcode else Condition.AL.opcode
-    val s = if (inst.s && caps.s) 1 else 0
+    val condData = caps.cond?.opcode ?: Condition.AL.opcode
+    val s = if (inst.category == DATA_PROCESSING && caps.s) 1 else 0
     return encodeData(listOf(
             condBits to condData,
             sBit to s
@@ -89,53 +90,47 @@ private fun encodeShift(shifterOperand: List<ExprAst>): Int {
     }
 }
 
-private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps): Int {
-    val args = arglist.args
-
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-
-    return ADD.eqMask or
-            encodeRegisters(rd = rd, rn = rn) or
-            encodeCaps(ADD, caps) or
-            encodeShift(args.drop(2))
-}
-
-
-private fun emitAnd(arglist: ArglistAst, caps: InstructionCaps): Int {
-    val args = arglist.args
-
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
-
-    return AND.eqMask or
-            encodeRegisters(rd = rd, rn = rn) or
-            encodeCaps(AND, caps) or
-            encodeShift(args.drop(2))
-}
-
-private fun emitMov(arglist: ArglistAst, caps: InstructionCaps): Int {
+private fun emitDataProcessingInstruction2Arg(
+        inst: Instruction, arglist: ArglistAst, caps: InstructionCaps
+): Int {
     val args = arglist.args
 
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
 
-    return MOV.eqMask or
+    return encodeData(listOf(opcodeBits to inst.opcode)) or
             encodeRegisters(rd = rd) or
             encodeCaps(MOV, caps) or
             encodeShift(args.drop(1))
 }
 
-private fun emitSub(arglist: ArglistAst, caps: InstructionCaps): Int {
+private fun emitDataProcessingInstruction3Arg(
+        inst: Instruction, arglist: ArglistAst, caps: InstructionCaps
+): Int {
     val args = arglist.args
 
     val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
     val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
 
-    return SUB.eqMask or
+    return encodeData(listOf(opcodeBits to inst.opcode)) or
             encodeRegisters(rd = rd, rn = rn) or
-            encodeCaps(SUB, caps) or
+            encodeCaps(inst, caps) or
             encodeShift(args.drop(2))
 }
+
+private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps) =
+        emitDataProcessingInstruction3Arg(ADD, arglist, caps)
+
+private fun emitAdc(arglist: ArglistAst, caps: InstructionCaps) =
+        emitDataProcessingInstruction3Arg(ADC, arglist, caps)
+
+private fun emitAnd(arglist: ArglistAst, caps: InstructionCaps) =
+        emitDataProcessingInstruction3Arg(AND, arglist, caps)
+
+private fun emitBic(arglist: ArglistAst, caps: InstructionCaps) =
+        emitDataProcessingInstruction3Arg(BIC, arglist, caps)
+
+private fun emitSub(arglist: ArglistAst, caps: InstructionCaps) =
+        emitDataProcessingInstruction3Arg(SUB, arglist, caps)
 
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
@@ -155,24 +150,32 @@ class Assembler(input: String) {
         val targetAddress = labels[label]!!
         val signedImmed24 = (targetAddress - locationCounter).trim(24)
 
-        return encodeInstruction(B, listOf(
+        return encodeInstruction(branchMask, listOf(
                 condBits to cond,
                 signedImmed24Bits to signedImmed24
         ))
     }
 
-    private val encoder = InstructionEncoder(mapOf(
-            ADD to ::emitAdd,
-            AND to ::emitAnd,
-            B to this::emitB,
-            MOV to ::emitMov,
-            SUB to ::emitSub
-    ))
-
     fun encodeNextInstruction(instAst: InstructionAst): Int {
-        val inst = encoder.encode(instAst)
+        val mnemonic = instAst.mnemonic.value
+        val arglist = instAst.arglist
+
+        val (inst, caps) = mnemonics[mnemonic] ?:
+                throw AssemblerException("Unrecognized mnemonic $mnemonic")
+
+        val encodedInst: Int = when (inst.category) {
+            BRANCH -> emitB(arglist, caps)
+            DATA_PROCESSING -> {
+                when(inst.args) {
+                    2 -> emitDataProcessingInstruction2Arg(inst, arglist, caps)
+                    3 -> emitDataProcessingInstruction3Arg(inst, arglist, caps)
+                    else -> throw AssemblerException("args")
+                }
+            }
+        }
+
         ++locationCounter
-        return inst
+        return encodedInst
     }
 
     fun assemble(): Program {

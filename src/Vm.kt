@@ -56,20 +56,14 @@ fun signExtend(i24: Int): Int {
     return (i24 shl 8) shr 8
 }
 
-private fun op(opcode: Int, rnData: Int, shifterOperand: Int): Int {
-    return when (opcode) {
-        MOV.opcode -> shifterOperand
-        ADD.opcode -> rnData + shifterOperand
-        AND.opcode -> rnData and shifterOperand
-        SUB.opcode -> rnData - shifterOperand
-        else -> throw VmException("opcode")
-    } // FIXME: rest
-}
+fun notC(c: Int)  = if(c == 1) 0 else 1
+
+data class AluOut(val result: Int, val c: Int, val v: Int)
 
 class Vm(private val program: Program) {
     private val r = (0..15).map { 0 }.toMutableList()
 
-    private var cpsr_r = Cpsr(0, 0, 0, 0)
+    var cpsr = Cpsr(0, 0, 0, 0)
 
     var ip = 0 // FIXME: r15
         private set
@@ -83,21 +77,58 @@ class Vm(private val program: Program) {
     private fun conditionPassed(cond: Int): Boolean {
         return when (cond) {
             AL.opcode -> true
-            EQ.opcode -> cpsr_r.z == 1
-            NE.opcode -> cpsr_r.z == 0
-            LT.opcode -> cpsr_r.n != cpsr_r.v
-            GT.opcode -> cpsr_r.z == 0 && cpsr_r.n == cpsr_r.v
+            EQ.opcode -> cpsr.z == 1
+            NE.opcode -> cpsr.z == 0
+            LT.opcode -> cpsr.n != cpsr.v
+            GT.opcode -> cpsr.z == 0 && cpsr.n == cpsr.v
             else -> throw VmException("cond")
+        }
+    }
+
+    private fun alu(
+            opcode: Int, lhs: Int, rhs: Int, shifterCarryOut: Int
+    ): AluOut = when (opcode) {
+        MOV.opcode -> AluOut(rhs, c = shifterCarryOut, v = cpsr.v)
+        MVN.opcode -> AluOut(rhs.inv(), c = shifterCarryOut, v = cpsr.v)
+        ADD.opcode -> AluOut(lhs + rhs, c = 0, v = 0) // FIXME: c, v
+        ADC.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0) // FIXME: c, v
+        AND.opcode -> AluOut(lhs and rhs, c = 0, v = 0) // FIXME: c, v
+        BIC.opcode -> AluOut(lhs and rhs.inv(), c = 0, v = 0) // FIXME: c, v
+        CMN.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0) // FIXME: c, v
+        CMP.opcode -> AluOut(lhs - rhs, c = 0, v = 0) // FIXME: c, v
+        EOR.opcode -> AluOut(lhs xor rhs, c = 0, v = 0) // FIXME: c, v
+        ORR.opcode -> AluOut(lhs or rhs, c = 0, v = 0) // FIXME: c, v
+        RSB.opcode -> AluOut(rhs - lhs, c = 0, v = 0) // FIXME: c, v
+        SBC.opcode -> AluOut(lhs - rhs - notC(cpsr.c), c = 0, v = 0)
+        SUB.opcode -> AluOut(lhs - rhs, c = 0, v = 0) // FIXME: c, v
+        TEQ.opcode -> AluOut(lhs xor rhs, c = 0, v = 0) // FIXME: c, v
+        TST.opcode -> AluOut(lhs and rhs, c = 0, v = 0) // FIXME: c, v
+        else -> throw VmException("opcode")
+    }
+
+    fun execDataProcessingOp(inst: Int, shifterOperand: Int, shifterCarryOut: Int) {
+        val opcode = decodeComponent(inst, opcodeBits)
+        val s = decodeComponent(inst, sBit)
+        val rn = decodeComponent(inst, rnBits)
+        val rd = decodeComponent(inst, rdBits)
+
+        val (aluOut, c, v) = alu(opcode, r[rn], shifterOperand, shifterCarryOut)
+
+        if (opcode !in TST.opcode..CMN.opcode) {
+            r[rd] = aluOut
+        }
+
+        if (s == 1) {
+            cpsr.n = aluOut.bit(31)
+            cpsr.z = if (aluOut == 0) 1 else 0
+            cpsr.c = c
+            cpsr.v = v
         }
     }
 
     fun execDataProcessingImmediateShiftInstruction(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
-            val opcode = decodeComponent(inst, opcodeBits)
-            val s = decodeComponent(inst, sBit)
-            val rn = decodeComponent(inst, rnBits)
-            val rd = decodeComponent(inst, rdBits)
             val shiftImm = decodeComponent(inst, shiftImmBits)
             val shift = decodeComponent(inst, shiftBits)
             val rm = decodeComponent(inst, rmBits)
@@ -110,38 +141,20 @@ class Vm(private val program: Program) {
 
             val shifterCarryOut = r[rm].bit(32 - shiftImm)
 
-            r[rd] = op(opcode, r[rn], shifterOperand)
-
-            if (s == 1) {
-                cpsr_r.n = r[rd].bit(31)
-                cpsr_r.z = if (r[rd] == 0) 1 else 0
-                cpsr_r.c = shifterCarryOut
-                // V Flag = unaffected
-            }
+            execDataProcessingOp(inst, shifterOperand, shifterCarryOut)
         }
     }
 
     fun execDataProcessingImmediateInstruction(inst: Int) {
         val cond = decodeComponent(inst, condBits)
         if (conditionPassed(cond)) {
-            val opcode = decodeComponent(inst, opcodeBits)
-            val s = decodeComponent(inst, sBit)
-            val rn = decodeComponent(inst, rnBits)
-            val rd = decodeComponent(inst, rdBits)
             val rotateImm = decodeComponent(inst, rotateImmBits)
             val immed8 = decodeComponent(inst, immed8Bits)
 
             val shifterOperand = immed8 shr (rotateImm * 2)
-            val shifterCarryOut = if (rotateImm == 0) cpsr_r.c else shifterOperand.bit(31)
+            val shifterCarryOut = if (rotateImm == 0) cpsr.c else shifterOperand.bit(31)
 
-            r[rd] = op(opcode, r[rn], shifterOperand)
-
-            if (s == 1) {
-                cpsr_r.n = r[rd].bit(31)
-                cpsr_r.z = if (r[rd] == 0) 1 else 0
-                cpsr_r.c = shifterCarryOut
-                // V Flag = unaffected
-            }
+            execDataProcessingOp(inst, shifterOperand, shifterCarryOut)
         }
     }
 
@@ -181,6 +194,7 @@ class Vm(private val program: Program) {
         return r[index]
     }
 
-    val cpsr: Cpsr
-        get() = cpsr_r.copy()
+    fun setRegisterValue(index: Int, data: Int) {
+        r[index] = data
+    }
 }
