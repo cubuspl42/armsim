@@ -6,16 +6,18 @@ fun Char.isDigit(): Boolean {
     return (this in ('0'..'9'))
 }
 
-enum class TokenKind {
-    COMMA,
+enum class TokenKind(val char: Char? = null) {
+    COMMA(','),
     COMMENT,
     CONST,
-    EOL,
+    EOL('\n'),
     IDENT,
     MNEMONIC,
     REGISTER,
     WHITESPACE,
-    SHIFT_OPERATOR
+    SHIFT_OPERATOR,
+    LBRACKET('['),
+    RBRACKET(']')
 }
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
@@ -63,12 +65,12 @@ class Lexer(private val input: String) : Iterable<Token> {
         return digits.toInt()
     }
 
-    private fun readCharToken(kind: TokenKind, c: Char): Token {
-        expectChar(c)
+    private fun readCharToken(kind: TokenKind): Token {
+        expectChar(kind.char!!)
         return Token(kind, (inputOffset - 1..inputOffset - 1))
     }
 
-    private fun readComma() = readCharToken(TokenKind.COMMA, ',')
+    private fun readComma() = readCharToken(TokenKind.COMMA)
 
     private fun readComment(): Token {
         return Token(TokenKind.COMMENT, makeRange {
@@ -87,7 +89,7 @@ class Lexer(private val input: String) : Iterable<Token> {
         }, intValue =  value)
     }
 
-    private fun readEol() = readCharToken(TokenKind.EOL, '\n')
+    private fun readEol() = readCharToken(TokenKind.EOL)
 
     private fun readIdentAlike(): Token {
         var name = ""
@@ -140,6 +142,8 @@ class Lexer(private val input: String) : Iterable<Token> {
             c == ';' -> readComment()
             c == '#' -> readConst()
             c == '\n' -> readEol()
+            c == '[' -> readCharToken(TokenKind.LBRACKET)
+            c == ']' -> readCharToken(TokenKind.RBRACKET)
             c.isLetter() -> readIdentAlike()
             c in inlineWhitespace -> readWhitespace()
             else -> throw LexerException("Unexpected character: `$c`")

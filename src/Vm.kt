@@ -1,5 +1,6 @@
 import Instruction.*
 import Condition.*
+import kotlin.experimental.or
 
 class VmException(s: String) : Throwable(s)
 
@@ -56,7 +57,7 @@ fun signExtend(i24: Int): Int {
     return (i24 shl 8) shr 8
 }
 
-fun notC(c: Int)  = if(c == 1) 0 else 1
+fun notC(c: Int) = if (c == 1) 0 else 1
 
 data class AluOut(val result: Int, val c: Int, val v: Int)
 
@@ -68,10 +69,23 @@ class Vm(private val program: Program) {
     var ip = 0 // FIXME: r15
         private set
 
+    private val mem = (0..1024).map { 0.toByte() }.toMutableList()
+
     private fun printRegisters() {
         println(r
                 .mapIndexed { i, data -> "r$i = $data" }
                 .joinToString(" / "))
+    }
+
+    private fun readMemory(address: Int): Int {
+        val a = mem[address + 0]
+        val b = mem[address + 1]
+        val c = mem[address + 2]
+        val d = mem[address + 3]
+        return a.toInt() and 0xFF or
+                (b.toInt() and 0xFF shl 8) or
+                (c.toInt() and 0xFF shl 16) or
+                (d.toInt() and 0xFF shl 24)
     }
 
     private fun conditionPassed(cond: Int): Boolean {
@@ -88,21 +102,22 @@ class Vm(private val program: Program) {
     private fun alu(
             opcode: Int, lhs: Int, rhs: Int, shifterCarryOut: Int
     ): AluOut = when (opcode) {
+    // FIXME: c, v flags
         MOV.opcode -> AluOut(rhs, c = shifterCarryOut, v = cpsr.v)
         MVN.opcode -> AluOut(rhs.inv(), c = shifterCarryOut, v = cpsr.v)
-        ADD.opcode -> AluOut(lhs + rhs, c = 0, v = 0) // FIXME: c, v
-        ADC.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0) // FIXME: c, v
-        AND.opcode -> AluOut(lhs and rhs, c = 0, v = 0) // FIXME: c, v
-        BIC.opcode -> AluOut(lhs and rhs.inv(), c = 0, v = 0) // FIXME: c, v
-        CMN.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0) // FIXME: c, v
-        CMP.opcode -> AluOut(lhs - rhs, c = 0, v = 0) // FIXME: c, v
-        EOR.opcode -> AluOut(lhs xor rhs, c = 0, v = 0) // FIXME: c, v
-        ORR.opcode -> AluOut(lhs or rhs, c = 0, v = 0) // FIXME: c, v
-        RSB.opcode -> AluOut(rhs - lhs, c = 0, v = 0) // FIXME: c, v
+        ADD.opcode -> AluOut(lhs + rhs, c = 0, v = 0)
+        ADC.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0)
+        AND.opcode -> AluOut(lhs and rhs, c = 0, v = 0)
+        BIC.opcode -> AluOut(lhs and rhs.inv(), c = 0, v = 0)
+        CMN.opcode -> AluOut(lhs + rhs + cpsr.c, c = 0, v = 0)
+        CMP.opcode -> AluOut(lhs - rhs, c = 0, v = 0)
+        EOR.opcode -> AluOut(lhs xor rhs, c = 0, v = 0)
+        ORR.opcode -> AluOut(lhs or rhs, c = 0, v = 0)
+        RSB.opcode -> AluOut(rhs - lhs, c = 0, v = 0)
         SBC.opcode -> AluOut(lhs - rhs - notC(cpsr.c), c = 0, v = 0)
-        SUB.opcode -> AluOut(lhs - rhs, c = 0, v = 0) // FIXME: c, v
-        TEQ.opcode -> AluOut(lhs xor rhs, c = 0, v = 0) // FIXME: c, v
-        TST.opcode -> AluOut(lhs and rhs, c = 0, v = 0) // FIXME: c, v
+        SUB.opcode -> AluOut(lhs - rhs, c = 0, v = 0)
+        TEQ.opcode -> AluOut(lhs xor rhs, c = 0, v = 0)
+        TST.opcode -> AluOut(lhs and rhs, c = 0, v = 0)
         else -> throw VmException("opcode")
     }
 
@@ -172,10 +187,23 @@ class Vm(private val program: Program) {
         }
     }
 
+    fun execLoadAndStoreInstruction(inst: Int) {
+        val cond = decodeComponent(inst, condBits)
+        if (conditionPassed(cond)) {
+            val rd = decodeComponent(inst, rdBits)
+            val rn = decodeComponent(inst, rnBits)
+            val offset12 = decodeComponent(inst, offset12Bits)
+            val address = r[rn] + offset12
+            val data = readMemory(address)
+            r[rd] = data
+        }
+    }
+
     private val decoder = InstructionDecoder(listOf(
             dataProcessingImmediateShiftMask to this::execDataProcessingImmediateShiftInstruction,
             dataProcessingImmediateMask to this::execDataProcessingImmediateInstruction,
-            branchMask to this::execBranchInstruction
+            branchMask to this::execBranchInstruction,
+            loadAndStoreMask to this::execLoadAndStoreInstruction
     ))
 
     fun step() {
@@ -196,5 +224,9 @@ class Vm(private val program: Program) {
 
     fun setRegisterValue(index: Int, data: Int) {
         r[index] = data
+    }
+
+    fun setByte(address: Int, byte: Byte) {
+        mem[address] = byte
     }
 }

@@ -1,31 +1,63 @@
-import Instruction.*
 import InstructionCategory.*
 
 data class Program(val instructions: List<Int>)
 
 class AssemblerException(s: String) : Throwable(s)
 
+private fun maskFromRange(bits: IntRange): Int {
+    val offset = bits.first
+    val len = bits.last - bits.first + 1
+    val mask = ((1 shl len) - 1) shl offset
+    return mask
+}
+
+/***
+ * Masked Integer
+ */
+data class MInt(val mask: Int = 0, val value: Int = 0) {
+    init {
+        if (value and mask.inv() != 0)
+            throw AssemblerException("Mask $mask does not cover $value")
+    }
+
+    infix fun or(mInt: MInt): MInt {
+        if (mask and mInt.mask != 0)
+            throw AssemblerException("Mask $mask overlaps ${mInt.mask}")
+        return MInt(mask or mInt.mask, value or mInt.value)
+    }
+}
+
 fun Int.trim(nBits: Int): Int {
     return this and ((1 shl nBits) - 1)
 }
 
-private fun encodeComponent(inst: Int, bits: IntRange, data: Int): Int {
-    val len = bits.last - bits.first + 1
-    val mask = (1 shl len) - 1
-    if (data and mask.inv() != 0) throw AssemblerException("$data does not fit in bits $bits")
+private fun encodeComponent(inst: MInt, bits: IntRange, value: Int): MInt {
     val offset = bits.first
-    return inst or (data shl offset)
+    val mask = maskFromRange(bits)
+    return inst or MInt(mask, value shl offset)
 }
 
-fun encodeData(components: List<Pair<IntRange, Int>>): Int {
-    return components.foldRight(0, { p, acc ->
+fun encodeData(components: List<Pair<IntRange, Int>>): MInt {
+    return components.foldRight(MInt(), { p, acc ->
         val (bits, data) = p
         encodeComponent(acc, bits, data)
     })
 }
 
-fun encodeInstruction(mask: Mask, components: List<Pair<IntRange, Int>>): Int {
-    return mask.xorMask or encodeData(components)
+fun encodeData(vararg components: Pair<IntRange, Int>): MInt =
+        encodeData(components.toList())
+
+fun encodeCond(cond: Condition?): MInt =
+        encodeData(condBits to (cond?.opcode ?: Condition.AL.opcode))
+
+fun encodePrefix(prefix: Int) =
+        encodeData(prefixBits to prefix)
+
+fun encodeSbz(rnBits: IntRange): MInt =
+        encodeData(rnBits to 0)
+
+fun encodeInstruction(mask: Mask, components: List<Pair<IntRange, Int>>): MInt {
+    return mask.toMInt() or encodeData(components)
 }
 
 inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
@@ -34,14 +66,30 @@ inline fun <reified TExprAst> castExpr(node: ExprAst): TExprAst {
     } else throw AssemblerException("Expected ${TExprAst::class.simpleName}, got ${node::class.simpleName}")
 }
 
-private fun encodeRegisters(rd: Int = 0, rn: Int = 0): Int {
-    return encodeData(listOf(
-            rdBits to rd,
-            rnBits to rn
-    ))
+fun encodeRegisterIndex(rBits: IntRange, r: RegisterAst): MInt {
+    if (r.index !in 0..15) throw AssemblerException("r.index")
+    return encodeData(listOf(rBits to r.index))
 }
 
-private fun encodeCaps(inst: Instruction, caps: InstructionCaps): Int {
+fun encodeRegister(rBits: IntRange, r: RegisterAst): MInt {
+    // if(r.sign != null) throw
+    return encodeRegisterIndex(rBits, r)
+}
+
+fun encodeRegisterOpt(rBits: IntRange, r: RegisterAst?): MInt =
+        r?.let { encodeRegister(rBits, it) } ?: MInt()
+
+private fun encodeRegisters(
+        rd: RegisterAst? = null,
+        rn: RegisterAst? = null,
+        rm: RegisterAst? = null
+): MInt {
+    return encodeRegisterOpt(rdBits, rd) or
+            encodeRegisterOpt(rnBits, rn) or
+            encodeRegisterOpt(rmBits, rm)
+}
+
+private fun encodeCaps(inst: Instruction, caps: InstructionCaps): MInt {
     val condData = caps.cond?.opcode ?: Condition.AL.opcode
     val s = if (inst.category == DATA_PROCESSING && caps.s) 1 else 0
     return encodeData(listOf(
@@ -50,18 +98,23 @@ private fun encodeCaps(inst: Instruction, caps: InstructionCaps): Int {
     ))
 }
 
-private fun encodeShift(shifterOperand: List<ExprAst>): Int {
+private fun encodeShift(shifterOperand: List<ExprAst>): MInt {
     return when (shifterOperand.size) {
         1 -> {
             val onlyArg = shifterOperand.first()
             when (onlyArg) {
                 is RegisterAst -> {
-                    val rm = castExpr<RegisterAst>(onlyArg).index // FIXME: check 0-15
-                    encodeData(listOf(rmBits to rm))
+                    val rm = asRegister(onlyArg)
+                    encodeRegisters(rm = rm)
                 }
                 is ConstAst -> {
+                    val rotateImm = 0 // FIXME
                     val immed = castExpr<ConstAst>(onlyArg).value
-                    encodeData(listOf(iBit to 1, immed8Bits to immed)) // FIXME: rotate
+                    encodeData(
+                            iBit to 1,
+                            rotateImmBits to rotateImm,
+                            immed8Bits to immed
+                    )
                 }
                 else -> throw AssemblerException("Expected register or constant")
             }
@@ -72,16 +125,18 @@ private fun encodeShift(shifterOperand: List<ExprAst>): Int {
             val shiftOperator = ShiftOperator.valueOf(shift.operator)
             when (shift.arg) {
                 is RegisterAst -> {
-                    val rs = castExpr<RegisterAst>(shift.arg).index // FIXME: check 0-15
-                    encodeData(listOf(rmBits to rm)) // FIXME: bits[4], bits[7], rs
+                    val rs = asRegister(shift.arg) // FIXME: rs
+                    encodeData(rmBits to rm) // FIXME: bits[4], bits[7]
                 }
                 is ConstAst -> {
                     val shiftImm = castExpr<ConstAst>(shift.arg).value
-                    encodeData(listOf(
+                    encodeData(
+                            iBit to 0,
                             shiftImmBits to shiftImm,
                             shiftBits to shiftOperator.opcode,
+                            bit4 to 0,
                             rmBits to rm
-                    ))
+                    )
                 }
                 else -> throw AssemblerException("Expected register or constant")
             }
@@ -90,47 +145,123 @@ private fun encodeShift(shifterOperand: List<ExprAst>): Int {
     }
 }
 
+private fun encodeIpuwBits(i: Int = 0, p: Int = 0, u: Int = 0, w: Int = 0): Int {
+    return 0
+}
+
+fun encodeSignedRm(rm: RegisterAst): MInt {
+    // val u = rm.sign
+    val u = 1
+    return encodeData(uBit to u) or encodeRegisterIndex(rmBits, rm)
+}
+
+private fun encodeAddressingMode(addressingModeArgs: List<ExprAst>): MInt {
+    val bracketArgs = castExpr<BracketAst>(addressingModeArgs[0]).arglist.args
+
+    val bRn =
+            bracketArgs.getOrNull(0) as? RegisterAst
+    val bOffset =
+            bracketArgs.getOrNull(1) as? ConstAst
+    val bRm =
+            bracketArgs.getOrNull(1) as? RegisterAst
+    val bShift =
+            bracketArgs.getOrNull(2) as? ShiftAst
+
+    val tOffset =
+            addressingModeArgs.getOrNull(1) as? ConstAst
+    val tRm =
+            addressingModeArgs.getOrNull(1) as? RegisterAst
+    val tShift =
+            addressingModeArgs.getOrNull(2) as? ShiftAst
+
+    val bArgs = bracketArgs.size
+    val tArgs = addressingModeArgs.size - 1
+
+    if (bRn == null) throw AssemblerException("addressing mode")
+
+    if (tArgs == 0) when {
+        bArgs == 1 || (bArgs == 2 && bOffset != null) -> {
+            // 1. [<Rn>]
+            // 1. [<Rn>, #+/-<offset_12>]
+            // 4. [<Rn>, #+/-<offset_12>]!
+            val offset = bOffset?.let { castExpr<ConstAst>(bOffset).value } ?: 0
+            val p = 0 // FIXME: !
+            val u = 1 // FIXME: +/-
+            return encodeRegisters(rn = bRn) or
+                    encodeData(iBit to 0, pBit to p, uBit to u, offset12Bits to offset)
+        }
+        bArgs == 2 && bRm != null -> {
+            // 2. [<Rn>, +/-<Rm>]
+            // 5. [<Rn>, +/-<Rm>]!
+            return encodeRegisters(rn = bRn) or
+                    encodeSignedRm(bRm)
+        }
+        bArgs == 2 && bRm != null && bShift != null -> {
+            // 3. [<Rn>, +/-<Rm>, <shift> #<shift_imm>]
+            // 6. [<Rn>, +/-<Rm>, <shift> #<shift_imm>]!
+        }
+        else -> throw AssemblerException("addressing mode")
+    } else if (bArgs == 1) when {
+        tArgs == 1 && tOffset != null -> {
+            // 7. [<Rn>], #+/-<offset_12>
+        }
+        tArgs == 1 && tRm != null -> {
+            // 8. [<Rn>], +/-<Rm>
+        }
+        tArgs == 2 && tRm != null && tShift != null -> {
+            // 9. [<Rn>], +/-<Rm>, <shift> #<shift_imm>
+        }
+        else -> throw AssemblerException("addressing mode")
+    } else throw AssemblerException("addressing mode")
+    return MInt() // FIXME
+}
+
 private fun emitDataProcessingInstruction2Arg(
         inst: Instruction, arglist: ArglistAst, caps: InstructionCaps
-): Int {
+): MInt {
     val args = arglist.args
 
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
+    val rd = args[0] as RegisterAst
 
-    return encodeData(listOf(opcodeBits to inst.opcode)) or
+    return encodeData(prefixBits to 0b00, opcodeBits to inst.opcode) or
+            encodeSbz(rnBits) or
             encodeRegisters(rd = rd) or
-            encodeCaps(MOV, caps) or
+            encodeCaps(inst, caps) or
             encodeShift(args.drop(1))
 }
 
 private fun emitDataProcessingInstruction3Arg(
         inst: Instruction, arglist: ArglistAst, caps: InstructionCaps
-): Int {
+): MInt {
     val args = arglist.args
 
-    val rd = castExpr<RegisterAst>(args[0]).index // FIXME: check 0-15
-    val rn = castExpr<RegisterAst>(args[1]).index // FIXME: check 0-15
+    val rd = args[0] as RegisterAst
+    val rn = args[1] as RegisterAst
 
-    return encodeData(listOf(opcodeBits to inst.opcode)) or
+    return encodeData(prefixBits to 0b00, opcodeBits to inst.opcode) or
             encodeRegisters(rd = rd, rn = rn) or
             encodeCaps(inst, caps) or
             encodeShift(args.drop(2))
 }
 
-private fun emitAdd(arglist: ArglistAst, caps: InstructionCaps) =
-        emitDataProcessingInstruction3Arg(ADD, arglist, caps)
+private fun emitLdr(inst: Instruction, arglist: ArglistAst, caps: InstructionCaps): MInt {
+    val args = arglist.args
 
-private fun emitAdc(arglist: ArglistAst, caps: InstructionCaps) =
-        emitDataProcessingInstruction3Arg(ADC, arglist, caps)
+    val rd = asRegister(args[0])
 
-private fun emitAnd(arglist: ArglistAst, caps: InstructionCaps) =
-        emitDataProcessingInstruction3Arg(AND, arglist, caps)
+    return encodeCond(caps.cond) or
+            encodePrefix(0b01) or
+            encodeData(bBit to 0, lBit20 to 1, wBit to 1) or
+            encodeRegisters(rd = rd) or
+            encodeAddressingMode(args.drop(1))
+}
 
-private fun emitBic(arglist: ArglistAst, caps: InstructionCaps) =
-        emitDataProcessingInstruction3Arg(BIC, arglist, caps)
+fun asRegister(exprAst: ExprAst): RegisterAst {
+    if (exprAst !is RegisterAst)
+        throw AssemblerException("Expected register, got ${exprAst::class.simpleName}")
+    return exprAst
+}
 
-private fun emitSub(arglist: ArglistAst, caps: InstructionCaps) =
-        emitDataProcessingInstruction3Arg(SUB, arglist, caps)
 
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
@@ -141,10 +272,11 @@ class Assembler(input: String) {
 
     private var locationCounter = 0
 
-    private fun emitB(arglist: ArglistAst, caps: InstructionCaps): Int {
+    private fun emitB(arglist: ArglistAst, caps: InstructionCaps): MInt {
         val args = arglist.args
 
         val cond = caps.cond?.opcode ?: Condition.AL.opcode
+        val l = 0 // FIXME
         val label = castExpr<IdentAst>(args[0]).name
 
         val targetAddress = labels[label]!!
@@ -152,6 +284,7 @@ class Assembler(input: String) {
 
         return encodeInstruction(branchMask, listOf(
                 condBits to cond,
+                lBit24 to l,
                 signedImmed24Bits to signedImmed24
         ))
     }
@@ -163,19 +296,25 @@ class Assembler(input: String) {
         val (inst, caps) = mnemonics[mnemonic] ?:
                 throw AssemblerException("Unrecognized mnemonic $mnemonic")
 
-        val encodedInst: Int = when (inst.category) {
+        val encodedInst: MInt = when (inst.category) {
             BRANCH -> emitB(arglist, caps)
             DATA_PROCESSING -> {
-                when(inst.args) {
+                when (inst.args) {
                     2 -> emitDataProcessingInstruction2Arg(inst, arglist, caps)
                     3 -> emitDataProcessingInstruction3Arg(inst, arglist, caps)
-                    else -> throw AssemblerException("args")
+                    else -> throw AssemblerException("inst.args")
                 }
+            }
+            LOAD_AND_STORE -> {
+                emitLdr(inst, arglist, caps)
             }
         }
 
+        if (encodedInst.mask != 0.inv())
+            throw AssemblerException("Instruction not fully encoded")
+
         ++locationCounter
-        return encodedInst
+        return encodedInst.value
     }
 
     fun assemble(): Program {

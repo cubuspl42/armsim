@@ -22,6 +22,10 @@ class ShiftAst(val operator: String, val arg: ExprAst) : ExprAst() {
     override fun toString() = "$operator $arg"
 }
 
+class BracketAst(val arglist: ArglistAst) : ExprAst() {
+    override fun toString() = "[$arglist]"
+}
+
 class InstructionAst(
         val label: IdentAst?,
         val mnemonic: MnemonicAst,
@@ -91,6 +95,13 @@ class Parser(private val lexer: Lexer) {
         })
     }
 
+    private fun parseBracket(): ExprAst {
+        readExpectedToken(TokenKind.LBRACKET)
+        val arglist = parseArglist()
+        readExpectedToken(TokenKind.RBRACKET)
+        return BracketAst(arglist)
+    }
+
     private fun parseExpr(): ExprAst {
         val token = peekToken()
         return when (token?.kind) {
@@ -98,6 +109,7 @@ class Parser(private val lexer: Lexer) {
             TokenKind.IDENT -> parseIdent()
             TokenKind.REGISTER -> parseRegister()
             TokenKind.SHIFT_OPERATOR -> parseShift()
+            TokenKind.LBRACKET -> parseBracket()
             else -> throw Exception("Expected expression, got ${token?.kind}")
         }
     }

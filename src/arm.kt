@@ -2,10 +2,19 @@ import InstructionCategory.*
 
 val wordSize = 4
 
+val bit4 = 4..4
+val bit7 = 7..7
+
+val bBit = 22..22
 val condBits = 28..31
 val iBit = 25..25
 val immed8Bits = 0..7
+val lBit20 = 20..20
+val lBit24 = 24..24
+val offset12Bits = 0..11
 val opcodeBits = 21..24
+val pBit = 24..24
+val prefixBits = 26..27
 val rotateImmBits = 8..11
 val rdBits = 12..15
 val rmBits = 0..3
@@ -15,8 +24,12 @@ val shiftImmBits = 7..11
 val shiftBits = 5..6
 val shifterOperandBits = 0..11
 val signedImmed24Bits = 0..23
+val uBit = 23..23
+val wBit = 21..21
 
-data class Mask(val andMask: Int, val xorMask: Int)
+data class Mask(val andMask: Int, val xorMask: Int) {
+    fun toMInt(): MInt = MInt(andMask, xorMask)
+}
 
 val dataProcessingImmediateShiftMask = Mask(
         0b00001110000000000000000000010000,
@@ -38,9 +51,15 @@ val branchMask = Mask(
         0b00001010000000000000000000000000
 )
 
+val loadAndStoreMask = Mask(
+        0b00001100010100000000000000000000,
+        0b00000100000100000000000000000000
+)
+
 enum class InstructionCategory {
     BRANCH,
-    DATA_PROCESSING
+    DATA_PROCESSING,
+    LOAD_AND_STORE
 }
 
 enum class Instruction(
@@ -48,10 +67,10 @@ enum class Instruction(
         val opcode: Int = -1,
         val args: Int = -1
 ) {
+    B(category = BRANCH),
     ADC(category = DATA_PROCESSING, opcode = 0b0101, args = 3),
     ADD(category = DATA_PROCESSING, opcode = 0b0100, args = 3),
     AND(category = DATA_PROCESSING, opcode = 0b0000, args = 3),
-    B(category = BRANCH),
     BIC(category = DATA_PROCESSING, opcode = 0b1110, args = 3),
     CMN(category = DATA_PROCESSING, opcode = 0b1011, args = 2),
     CMP(category = DATA_PROCESSING, opcode = 0b1010, args = 2),
@@ -64,7 +83,8 @@ enum class Instruction(
     SBC(category = DATA_PROCESSING, opcode = 0b0110, args = 3),
     SUB(category = DATA_PROCESSING, opcode = 0b0010, args = 3),
     TEQ(category = DATA_PROCESSING, opcode = 0b1001, args = 2),
-    TST(category = DATA_PROCESSING, opcode = 0b1000, args = 2)
+    TST(category = DATA_PROCESSING, opcode = 0b1000, args = 2),
+    LDR(category = LOAD_AND_STORE)
 }
 
 enum class Condition(
@@ -80,7 +100,7 @@ enum class Condition(
 val mnemonics: Map<String, Pair<Instruction, InstructionCaps>> = Instruction.values().flatMap { inst ->
     val condList = listOf(null) + Condition.values().toList()
 
-    when (inst.category) {
+    val combinations: List<Pair<String, Pair<Instruction, InstructionCaps>>> = when (inst.category) {
         BRANCH -> {
             val lList = listOf(false, true)
 
@@ -101,7 +121,11 @@ val mnemonics: Map<String, Pair<Instruction, InstructionCaps>> = Instruction.val
                 fullMnemonic to Pair(inst, InstructionCaps(cond, s))
             }
         }
+        LOAD_AND_STORE -> {
+            listOf("LDR" to Pair(Instruction.LDR, InstructionCaps(null, s = false))) // FIXME
+        }
     }
+    combinations
 }.toMap()
 
 enum class ShiftOperator(val opcode: Int) {
