@@ -22,7 +22,7 @@ enum class TokenKind(val char: Char? = null) {
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
 
-class LexerException(s: String) : Exception(s)
+class LexerException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 val inlineWhitespace = listOf(' ', '\t')
 
@@ -58,11 +58,22 @@ class Lexer(private val input: String) : Iterable<Token> {
     }
 
     private fun readNumber(): Int {
-        var digits = ""
-        while (peekChar()?.isDigit() == true) {
-            digits += readChar()
+        val digits = generateSequence {
+            peekChar()?.let {
+                if (it.isDigit() || it.isLetter() || it == '-') readChar()
+                else null
+            }
+        }.joinToString("")
+
+        try {
+            return when {
+                digits.startsWith("-0x") -> -1 * digits.drop(3).toInt(16)
+                digits.startsWith("0x") -> digits.drop(2).toInt(16)
+                else -> digits.toInt()
+            }
+        } catch (e: NumberFormatException) {
+            throw LexerException("Invalid constant", e)
         }
-        return digits.toInt()
     }
 
     private fun readCharToken(kind: TokenKind): Token {
@@ -86,7 +97,7 @@ class Lexer(private val input: String) : Iterable<Token> {
         return Token(TokenKind.CONST, makeRange {
             expectChar('#')
             value = readNumber()
-        }, intValue =  value)
+        }, intValue = value)
     }
 
     private fun readEol() = readCharToken(TokenKind.EOL)
@@ -101,7 +112,7 @@ class Lexer(private val input: String) : Iterable<Token> {
 
         val m = registerRegex.matchEntire(name)
 
-        if(m != null) {
+        if (m != null) {
             val index = m.groups[1]!!.value.toInt()
             return Token(TokenKind.REGISTER, range, intValue = index)
         } else {
