@@ -22,7 +22,7 @@ enum class TokenKind(val char: Char? = null) {
 
 data class Token(val kind: TokenKind, val range: IntRange, val stringValue: String = "", val intValue: Int = -1)
 
-class LexerException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class LexerException(message: String, cause: Throwable? = null) : Exception(message)
 
 val inlineWhitespace = listOf(' ', '\t')
 
