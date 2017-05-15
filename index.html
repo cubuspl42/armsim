@@ -12,7 +12,10 @@
 <div id="code-wrapper"></div>
 <div id="status-wrapper"></div>
 <script id="asm-code" type="asm">
+        MOV  R1, #255
         LDR  R0, [R1]
+        ADD  R0, R0, #2
+        STR  R0, [R1]
         MOV  R0, #5         ; R0 is current number
         MOV  R1, #0         ; R1 is count of number of iterations
 again   ADD  R1, R1, #1     ; increment number of iterations

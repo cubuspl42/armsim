@@ -244,14 +244,17 @@ private fun emitDataProcessingInstruction3Arg(
             encodeShift(args.drop(2))
 }
 
-private fun emitLdr(inst: Instruction, arglist: ArglistAst, caps: InstructionCaps): MInt {
+private fun emitLoadAndStoreInstruction(
+        inst: Instruction, arglist: ArglistAst, caps: InstructionCaps
+): MInt {
     val args = arglist.args
 
     val rd = asRegister(args[0])
+    val l = if(inst == Instruction.LDR) 1 else 0
 
     return encodeCond(caps.cond) or
             encodePrefix(0b01) or
-            encodeData(bBit to 0, lBit20 to 1, wBit to 1) or
+            encodeData(bBit to 0, lBit20 to l, wBit to 1) or
             encodeRegisters(rd = rd) or
             encodeAddressingMode(args.drop(1))
 }
@@ -261,7 +264,6 @@ fun asRegister(exprAst: ExprAst): RegisterAst {
         throw AssemblerException("Expected register, got ${exprAst::class.simpleName}")
     return exprAst
 }
-
 
 class Assembler(input: String) {
     private val ast = Parser(Lexer(input)).parse()
@@ -306,7 +308,7 @@ class Assembler(input: String) {
                 }
             }
             LOAD_AND_STORE -> {
-                emitLdr(inst, arglist, caps)
+                emitLoadAndStoreInstruction(inst, arglist, caps)
             }
         }
 

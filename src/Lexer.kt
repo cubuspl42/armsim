@@ -146,6 +146,7 @@ class Lexer(private val input: String) : Iterable<Token> {
 
     fun readToken(): Token? {
         val c = peekChar()
+        val cStr = c.toString()
 
         return when {
             c == null -> null
@@ -157,7 +158,7 @@ class Lexer(private val input: String) : Iterable<Token> {
             c == ']' -> readCharToken(TokenKind.RBRACKET)
             c.isLetter() -> readIdentAlike()
             c in inlineWhitespace -> readWhitespace()
-            else -> throw LexerException("Unexpected character: `$c`")
+            else -> throw LexerException("Unexpected character: `$cStr`")
         }
     }
 

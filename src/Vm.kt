@@ -2,6 +2,8 @@ import Instruction.*
 import Condition.*
 import kotlin.experimental.or
 
+val MEMORY_SIZE = 1024
+
 class VmException(s: String) : Throwable(s)
 
 class InstructionDecoder(private val handlers: List<Pair<Mask, (Int) -> Unit>>) {
@@ -69,7 +71,7 @@ class Vm(private val program: Program) {
     var ip = 0 // FIXME: r15
         private set
 
-    private val mem = (0..1024).map { 0.toByte() }.toMutableList()
+    private val mem = (0..MEMORY_SIZE - 1).map { 0.toByte() }.toMutableList()
 
     private fun printRegisters() {
         println(r
@@ -86,6 +88,13 @@ class Vm(private val program: Program) {
                 (b.toInt() and 0xFF shl 8) or
                 (c.toInt() and 0xFF shl 16) or
                 (d.toInt() and 0xFF shl 24)
+    }
+
+    private fun writeMemory(address: Int, data: Int) {
+        mem[address + 0] = (data shr 0 and 0xFF).toByte()
+        mem[address + 1] = (data shr 8 and 0xFF).toByte()
+        mem[address + 2] = (data shr 16 and 0xFF).toByte()
+        mem[address + 3] = (data shr 24 and 0xFF).toByte()
     }
 
     private fun conditionPassed(cond: Int): Boolean {
@@ -194,8 +203,14 @@ class Vm(private val program: Program) {
             val rn = decodeComponent(inst, rnBits)
             val offset12 = decodeComponent(inst, offset12Bits)
             val address = r[rn] + offset12
-            val data = readMemory(address)
-            r[rd] = data
+            val l = decodeComponent(inst, lBit20)
+            if (l == 1) {
+                val data = readMemory(address)
+                r[rd] = data
+            } else {
+                val data = r[rd]
+                writeMemory(address, data)
+            }
         }
     }
 

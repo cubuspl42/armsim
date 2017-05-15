@@ -52,8 +52,8 @@ val branchMask = Mask(
 )
 
 val loadAndStoreMask = Mask(
-        0b00001100010100000000000000000000,
-        0b00000100000100000000000000000000
+        0b00001100010000000000000000000000,
+        0b00000100000000000000000000000000
 )
 
 enum class InstructionCategory {
@@ -84,7 +84,8 @@ enum class Instruction(
     SUB(category = DATA_PROCESSING, opcode = 0b0010, args = 3),
     TEQ(category = DATA_PROCESSING, opcode = 0b1001, args = 2),
     TST(category = DATA_PROCESSING, opcode = 0b1000, args = 2),
-    LDR(category = LOAD_AND_STORE)
+    LDR(category = LOAD_AND_STORE),
+    STR(category = LOAD_AND_STORE)
 }
 
 enum class Condition(
@@ -121,9 +122,7 @@ val mnemonics: Map<String, Pair<Instruction, InstructionCaps>> = Instruction.val
                 fullMnemonic to Pair(inst, InstructionCaps(cond, s))
             }
         }
-        LOAD_AND_STORE -> {
-            listOf("LDR" to Pair(Instruction.LDR, InstructionCaps(null, s = false))) // FIXME
-        }
+        LOAD_AND_STORE -> listOf(inst.name to Pair(inst, InstructionCaps(null, s = false)))
     }
     combinations
 }.toMap()
