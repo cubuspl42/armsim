@@ -2,6 +2,11 @@
 	margin-bottom: 8px;
 }
 
+#code-wrapper {
+    float: left;
+    margin-right: 8px;
+}
+
 code {
 	display: inline-block;
 }

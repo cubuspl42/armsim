@@ -44,11 +44,21 @@ fun makeCodeElement(input: String): Element {
 fun makeStatusElement(vm: Vm): Element {
     val statusDiv = document.createElement("div")
     statusDiv.className = "status"
+
     (0..15).forEach {
         val span = document.createElement("span")
-        span.textContent = "r$it = ${vm.getRegisterValue(it)}"
+        span.textContent = "r$it: "
+        val i = document.createElement("i")
+        i.textContent =  "${vm.getRegisterValue(it)}"
+        span.appendChild(i)
         statusDiv.appendChild(span)
     }
+
+    val span = document.createElement("span")
+    val cpsr = vm.cpsr
+    span.textContent = "cpsr: c=${cpsr.c}, n=${cpsr.n}, v=${cpsr.v}, z=${cpsr.z}"
+    statusDiv.appendChild(span)
+
     return statusDiv
 }
 
