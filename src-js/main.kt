@@ -1,6 +1,10 @@
 import org.w3c.dom.Element
+import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
+import org.w3c.files.File
+import org.w3c.files.FileReader
+import org.w3c.files.get
 import kotlin.browser.document
 import kotlin.dom.clear
 
@@ -67,34 +71,61 @@ fun main(args: Array<String>) {
 
     val input = document.getElementById(asmCodeId)!!.textContent!!.substring(1)
 
+    val errorWrapper = document.getElementById("error-wrapper")!!
     val codeWrapper = document.getElementById("code-wrapper")!!
     val statusWrapper = document.getElementById("status-wrapper")!!
 
     val stepButton = document.getElementById("step-button")!!
+    val sourceInput = document.getElementById("source-input")!!
 
-    val code = makeCodeElement(input)
-    codeWrapper.appendChild(code)
-
-    println(Parser(Lexer(input)).parse())
-
-    val program = Assembler(input).assemble()
-    program.instructions.forEach {
-        println(it.toString())
-    }
-
-    val vm = Vm(program)
+    var vm: Vm? = null
+    var code: Element? = null
 
     fun updatePresentation() {
-        code.getElementsByClassName("selected")[0]?.classList?.remove("selected")
-        code.children[vm.ip]!!.classList.add("selected")
+        code!!.getElementsByClassName("selected")[0]?.classList?.remove("selected")
+        code!!.children[vm!!.ip]!!.classList.add("selected")
         statusWrapper.clear()
-        statusWrapper.appendChild(makeStatusElement(vm))
+        statusWrapper.appendChild(makeStatusElement(vm!!))
     }
 
-    updatePresentation()
+    fun loadSource(source: String) {
+        codeWrapper.clear()
+        errorWrapper.clear()
+        statusWrapper.clear()
+
+        try {
+            val program = Assembler(source).assemble()
+            val vm_ = Vm(program)
+            val code_ = makeCodeElement(source)
+
+            codeWrapper.appendChild(code_)
+
+            vm = vm_
+            code = code_
+
+            updatePresentation()
+        } catch(e: Exception) {
+            val errorSpan = document.createElement("span")
+            errorSpan.textContent = e.message
+            errorWrapper.appendChild(errorSpan)
+        }
+    }
+
+    loadSource(input)
 
     stepButton.addEventListener("click", {
-        vm.step()
+        vm?.step()
         updatePresentation()
+    })
+
+    sourceInput.addEventListener("change", { ev ->
+        (ev.target as? HTMLInputElement)?.files?.let { files ->
+            val reader = FileReader()
+            reader.onload = { event ->
+                loadSource(reader.result as String)
+                Unit
+            }
+            reader.readAsText(files[0]!!)
+        }
     })
 }

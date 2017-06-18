@@ -1,4 +1,4 @@
-class ParserException(s: String) : Throwable(s)
+class ParserException(s: String) : Exception(s)
 
 class ArglistAst(val args: List<ExprAst>) {
     override fun toString() = args.joinToString(", ")
@@ -64,7 +64,8 @@ class Parser(private val lexer: Lexer) {
     private fun readExpectedToken(expectedTokenKind: TokenKind): Token {
         val token = readToken()
         if (token?.kind != expectedTokenKind) {
-            throw ParserException("Expected $expectedTokenKind, got ${token?.kind}")
+            val loc = if(token != null) "[chars ${token.range.first}:${token.range.last}]" else ""
+            throw ParserException("Expected $expectedTokenKind, got ${token?.kind} $loc")
         }
         return token
     }

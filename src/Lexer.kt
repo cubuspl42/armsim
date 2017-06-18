@@ -100,7 +100,10 @@ class Lexer(private val input: String) : Iterable<Token> {
         }, intValue = value)
     }
 
-    private fun readEol() = readCharToken(TokenKind.EOL)
+    private fun readEol(): Token = Token(TokenKind.EOL, makeRange {
+        if (peekChar() == '\r') readChar()
+        expectChar('\n')
+    })
 
     private fun readIdentAlike(): Token {
         var name = ""
@@ -153,12 +156,13 @@ class Lexer(private val input: String) : Iterable<Token> {
             c == ',' -> readComma()
             c == ';' -> readComment()
             c == '#' -> readConst()
+            c == '\r' -> readEol()
             c == '\n' -> readEol()
             c == '[' -> readCharToken(TokenKind.LBRACKET)
             c == ']' -> readCharToken(TokenKind.RBRACKET)
             c.isLetter() -> readIdentAlike()
             c in inlineWhitespace -> readWhitespace()
-            else -> throw LexerException("Unexpected character: `$cStr`")
+            else -> throw LexerException("Unexpected character: `$cStr` (${c.toInt()})")
         }
     }
 

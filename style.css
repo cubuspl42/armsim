@@ -2,6 +2,14 @@
 	margin-bottom: 8px;
 }
 
+#step-button {
+    margin-right: 8px;
+}
+
+#error-wrapper span {
+    color: red;
+}
+
 #code-wrapper {
     float: left;
     margin-right: 8px;
